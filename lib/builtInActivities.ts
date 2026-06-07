@@ -1,0 +1,46 @@
+import { TaskCategory } from './types';
+
+export const BUILT_IN_ACTIVITIES: Partial<Record<TaskCategory, { name: string; xp: number }[]>> = {
+  application: [
+    { name: 'Submit a tailored application', xp: 50 },
+    { name: 'Spray and pray (mass apply)', xp: 10 },
+    { name: 'Follow up on an application', xp: 15 },
+    { name: 'Recruiter screening call', xp: 25 },
+    { name: 'Follow up with a recruiter', xp: 15 },
+    { name: 'Share resume or profile with a recruiter', xp: 15 },
+  ],
+  networking: [
+    { name: 'Send a personalized outreach message', xp: 20 },
+    { name: 'Get an introduction from a contact', xp: 35 },
+    { name: 'Have a mentorship conversation', xp: 30 },
+    { name: 'Catch up with a friend in the field', xp: 15 },
+    { name: 'Have a coffee chat or informational interview', xp: 40 },
+    { name: 'Attend a networking event', xp: 50 },
+    { name: 'Ask someone for a referral', xp: 35 },
+    { name: "Engage with someone's professional content", xp: 10 },
+  ],
+  preparation: [
+    { name: 'Do a full mock interview', xp: 40 },
+    { name: 'Practice answering interview questions', xp: 20 },
+    { name: 'Update or tailor my resume', xp: 25 },
+    { name: 'Define consulting service offerings', xp: 30 },
+    { name: 'Draft a consulting proposal or SOW', xp: 40 },
+  ],
+  research: [
+    { name: 'Research a target company', xp: 15 },
+    { name: 'Find and review new job postings', xp: 10 },
+    { name: 'Build or update your target company list', xp: 20 },
+    { name: 'Research potential consulting clients', xp: 15 },
+    { name: 'Map out target consulting verticals', xp: 20 },
+  ],
+  selfcare: [
+    { name: 'Drink a glass of water', xp: 5 },
+    { name: 'Go outside / touch grass', xp: 5 },
+    { name: 'Talk to a friend or family member', xp: 5 },
+    { name: 'Take an unplugged break', xp: 5 },
+    { name: 'Go for a walk', xp: 5 },
+    { name: 'Meditate or just breathe', xp: 5 },
+    { name: 'Cook or eat a proper meal', xp: 5 },
+    { name: 'Get a full night of sleep', xp: 5 },
+  ],
+};
