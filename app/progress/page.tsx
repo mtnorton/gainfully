@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { Task, Badge, TaskCategory, CATEGORY_CONFIG } from '@/lib/types';
 import { Outcome, OUTCOME_CONFIG, OutcomeType } from '@/lib/outcomes';
-import { getInitialBadges, getLevelProgress } from '@/lib/gameLogic';
-
-const STORAGE_KEY = 'gainfully-state';
+import { getInitialBadges, getLevelProgress, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
+import AppHeader from '@/components/AppHeader';
+import { loadState } from '@/lib/supabase/storage';
 
 interface WeekSummary {
   tasks: Task[];
@@ -15,6 +14,8 @@ interface WeekSummary {
   outcomeCounts: Partial<Record<OutcomeType, number>>;
   taskXP: number;
   outcomeXP: number;
+  gameRounds: number;
+  gameXP: number;
   totalXP: number;
   badges: Badge[];
   start: Date;
@@ -44,11 +45,13 @@ function buildWeekSummary(
 ): WeekSummary {
   const { start, end } = getWeekBounds(weeksAgo);
 
-  const weekTasks = tasks.filter((t) => {
+  const allWeekCompleted = tasks.filter((t) => {
     if (!t.completed || !t.completedAt) return false;
     const d = new Date(t.completedAt);
     return d >= start && d <= end;
   });
+  const weekTasks = allWeekCompleted.filter((t) => !GAME_ONLY_TASK_NAMES.has(t.name));
+  const gameTasks = allWeekCompleted.filter((t) => GAME_ONLY_TASK_NAMES.has(t.name));
 
   const weekOutcomes = outcomes.filter((o) => {
     const d = new Date(o.date + 'T12:00:00');
@@ -73,6 +76,7 @@ function buildWeekSummary(
 
   const taskXP = weekTasks.reduce((s, t) => s + t.xp, 0);
   const outcomeXP = weekOutcomes.reduce((s, o) => s + (o.xpAwarded ?? 0), 0);
+  const gameXP = gameTasks.reduce((s, t) => s + t.xp, 0);
 
   return {
     tasks: weekTasks,
@@ -81,7 +85,9 @@ function buildWeekSummary(
     outcomeCounts,
     taskXP,
     outcomeXP,
-    totalXP: taskXP + outcomeXP,
+    gameRounds: gameTasks.length,
+    gameXP,
+    totalXP: taskXP + outcomeXP + gameXP,
     badges: weekBadges,
     start,
     end,
@@ -92,7 +98,7 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const CAT_ORDER: TaskCategory[] = ['application', 'networking', 'preparation', 'research', 'selfcare', 'custom'];
+const CAT_ORDER: TaskCategory[] = ['application', 'networking', 'preparation', 'research', 'skills', 'selfcare', 'hustle', 'custom'];
 const OUTCOME_ORDER: OutcomeType[] = ['offer', 'second_interview', 'interview', 'referral', 'response', 'rejection', 'ghosted', 'position_closed', 'other', 'standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'];
 
 function buildShareText(summary: WeekSummary, level: number, totalXP: number, isThisWeek: boolean): string {
@@ -102,6 +108,10 @@ function buildShareText(summary: WeekSummary, level: number, totalXP: number, is
 
   if (summary.totalXP > 0) {
     lines.push(`⚡ +${summary.totalXP} XP — Level ${level} (${totalXP.toLocaleString()} total)`);
+  }
+
+  if (summary.gameRounds > 0) {
+    lines.push(`🎮 ${summary.gameRounds} game round${summary.gameRounds !== 1 ? 's' : ''} played`);
   }
 
   if (summary.tasks.length > 0) {
@@ -144,7 +154,7 @@ function buildShareText(summary: WeekSummary, level: number, totalXP: number, is
   }
 
   lines.push('');
-  lines.push('#JobSearch #Gainfully');
+  lines.push('#JobSearch #MVUU');
 
   return lines.join('\n');
 }
@@ -163,38 +173,40 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
   const dateRange = isThisWeek
     ? `${fmtDate(summary.start)} – today`
     : `${fmtDate(summary.start)} – ${fmtDate(summary.end)}`;
-  const hasActivity = summary.tasks.length > 0 || summary.outcomes.length > 0;
+  const hasActivity = summary.tasks.length > 0 || summary.outcomes.length > 0 || summary.gameRounds > 0;
   const shareText = hasActivity ? buildShareText(summary, level, totalXP, isThisWeek) : '';
 
   return (
-    <div className="rounded-2xl bg-slate-800/40 border border-slate-700/40 p-5">
+    <div className="bg-white rounded-[22px] p-[18px]" style={{ border: '2px solid #F1E2CF' }}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-slate-100 font-semibold">{label}</h2>
-          <p className="text-slate-500 text-xs mt-0.5">{dateRange}</p>
+          <h2 className="font-fredoka font-bold text-[18px] text-[#2C2724]">{label}</h2>
+          <p className="text-[12px] text-[#A99C8D] mt-0.5">{dateRange}</p>
         </div>
         {hasActivity && (
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => onCopy(shareText)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium transition-colors"
+              className="px-3 py-1 rounded-[9px] text-[#6f6155] text-xs font-bold transition-colors hover:opacity-80"
+              style={{ background: '#F2E8DB' }}
             >
-              {copied ? '✓ Copied!' : '📋 Copy'}
+              {copied ? '✓ Copied!' : 'Copy'}
             </button>
             <a
               href={`https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 border border-sky-500/30 text-sky-300 text-xs font-medium transition-colors"
+              className="px-3 py-1 rounded-[9px] text-xs font-bold transition-colors hover:opacity-80"
+              style={{ background: '#E4F0FF', color: '#2563EB' }}
             >
-              🦋 Bluesky
+              Bluesky
             </a>
           </div>
         )}
       </div>
 
       {!hasActivity ? (
-        <p className="text-slate-500 text-sm">
+        <p className="text-[#97887A] text-sm">
           {isThisWeek
             ? "No activity logged yet — head to the dashboard to get started."
             : "No activity logged this week."}
@@ -202,12 +214,20 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
       ) : (
         <div className="space-y-5">
           {summary.totalXP > 0 && (
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-yellow-400">+{summary.totalXP}</span>
-              <span className="text-slate-400 text-sm">XP earned</span>
-              {summary.outcomeXP > 0 && summary.taskXP > 0 && (
-                <span className="text-slate-600 text-xs">
-                  ({summary.taskXP} tasks + {summary.outcomeXP} results)
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="font-fredoka font-bold text-[26px] text-[#F5A300]">+{summary.totalXP}</span>
+              <span className="font-bold text-[#2C2724]">XP earned</span>
+              {[
+                summary.taskXP > 0 ? `${summary.taskXP} tasks` : null,
+                summary.outcomeXP > 0 ? `${summary.outcomeXP} results` : null,
+                summary.gameXP > 0 ? `${summary.gameXP} games` : null,
+              ].filter(Boolean).length > 1 && (
+                <span className="text-[12px] text-[#A99C8D]">
+                  ({[
+                    summary.taskXP > 0 ? `${summary.taskXP} tasks` : null,
+                    summary.outcomeXP > 0 ? `${summary.outcomeXP} results` : null,
+                    summary.gameXP > 0 ? `${summary.gameXP} games` : null,
+                  ].filter(Boolean).join(' + ')})
                 </span>
               )}
             </div>
@@ -215,7 +235,7 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
 
           {summary.tasks.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
                 Tasks completed · {summary.tasks.length}
               </p>
               <div className="space-y-1.5">
@@ -223,11 +243,11 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
                   const count = summary.byCategory[cat]!;
                   const cfg = CATEGORY_CONFIG[cat];
                   return (
-                    <div key={cat} className="flex items-center justify-between">
-                      <span className="text-sm text-slate-300">
+                    <div key={cat} className="flex items-center justify-between py-1 border-b border-[#F3EADD]">
+                      <span className="font-bold text-[14px] text-[#2C2724]">
                         <span className="mr-2">{cfg.icon}</span>{cfg.label}
                       </span>
-                      <span className="text-sm font-semibold text-slate-100 tabular-nums">{count}</span>
+                      <span className="font-bold text-[#2C2724] tabular-nums">{count}</span>
                     </div>
                   );
                 })}
@@ -235,9 +255,21 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
             </div>
           )}
 
+          {summary.gameRounds > 0 && (
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
+                Games · {summary.gameRounds} round{summary.gameRounds !== 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[14px] text-[#2C2724]"><span className="mr-2">🎮</span>XP earned</span>
+                <span className="font-bold text-[#F5A300] tabular-nums">+{summary.gameXP}</span>
+              </div>
+            </div>
+          )}
+
           {summary.outcomes.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
                 Results logged · {summary.outcomes.length}
               </p>
               <div className="space-y-1.5">
@@ -245,11 +277,11 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
                   const count = summary.outcomeCounts[type]!;
                   const cfg = OUTCOME_CONFIG[type];
                   return (
-                    <div key={type} className="flex items-center justify-between">
-                      <span className={`text-sm ${cfg.sentiment === 'positive' ? 'text-slate-200' : 'text-slate-400'}`}>
+                    <div key={type} className="flex items-center justify-between py-1 border-b border-[#F3EADD]">
+                      <span className="font-bold text-[14px] text-[#2C2724]">
                         <span className="mr-2">{cfg.icon}</span>{cfg.label}
                       </span>
-                      <span className="text-sm font-semibold text-slate-100 tabular-nums">{count}</span>
+                      <span className="font-bold text-[#2C2724] tabular-nums">{count}</span>
                     </div>
                   );
                 })}
@@ -259,17 +291,18 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
 
           {summary.badges.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
                 Badges unlocked
               </p>
               <div className="flex flex-wrap gap-2">
                 {summary.badges.map((badge) => (
                   <div
                     key={badge.id}
-                    className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2"
+                    className="flex items-center gap-2 rounded-xl px-3 py-2"
+                    style={{ background: '#FFF7E8', border: '2px solid #FCE3B0' }}
                   >
                     <span className="text-xl">{badge.icon}</span>
-                    <span className="text-amber-200 text-xs font-medium">{badge.name}</span>
+                    <span className="text-xs font-bold text-[#B45309]">{badge.name}</span>
                   </div>
                 ))}
               </div>
@@ -291,22 +324,22 @@ export default function ProgressPage() {
   const [copiedKey, setCopiedKey] = useState<'this' | 'last' | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setTasks(parsed.tasks ?? []);
-        setOutcomes(parsed.outcomes ?? []);
-        setTotalXP(parsed.totalXP ?? 0);
+    async function init() {
+      const data = await loadState();
+      if (data) {
+        setTasks((data.tasks ?? []) as Task[]);
+        setOutcomes((data.outcomes ?? []) as Outcome[]);
+        setTotalXP((data.totalXP ?? 0) as number);
         const merged = getInitialBadges().map((b) => {
-          const saved = (parsed.badges ?? []).find((sb: Badge) => sb.id === b.id);
-          return saved ?? b;
+          const found = ((data.badges ?? []) as Badge[]).find((sb) => sb.id === b.id);
+          return found ?? b;
         });
         setBadges(merged);
-        setBadgeCount(merged.filter((b: Badge) => b.earned).length);
+        setBadgeCount(merged.filter((b) => b.earned).length);
       }
-    } catch {}
-    setMounted(true);
+      setMounted(true);
+    }
+    init();
   }, []);
 
   const handleCopy = (text: string, key: 'this' | 'last') => {
@@ -319,35 +352,13 @@ export default function ProgressPage() {
   if (!mounted) return null;
 
   const levelProgress = getLevelProgress(totalXP);
+  const completedNonGameCount = tasks.filter((t) => t.completed && !GAME_ONLY_TASK_NAMES.has(t.name)).length;
   const thisWeek = buildWeekSummary(tasks, outcomes, badges, 0);
   const lastWeek = buildWeekSummary(tasks, outcomes, badges, 1);
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/60">
-        <div className="max-w-2xl mx-auto px-4 flex flex-wrap items-center py-2 gap-y-1 sm:flex-nowrap sm:h-16 sm:py-0">
-          <div className="flex items-center gap-2 order-1">
-            <span className="text-2xl">💼</span>
-            <span className="text-xl font-bold text-slate-100 tracking-tight">Gainfully</span>
-          </div>
-          <nav className="flex gap-0.5 w-full sm:w-auto sm:ml-4 order-3 sm:order-2 pb-1 sm:pb-0">
-            <Link href="/" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Dashboard</Link>
-            <Link href="/pipeline" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Pipeline</Link>
-            <span className="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-slate-100 font-medium">Progress</span>
-            <Link href="/badges" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
-              Badges{badgeCount > 0 && (
-                <span className="ml-1.5 text-amber-400 font-bold">{badgeCount}</span>
-              )}
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-3 order-2 sm:order-3">
-            <div className="flex items-center gap-1.5 bg-violet-600/20 border border-violet-500/30 rounded-full px-3 py-1">
-              <span className="text-violet-300 font-semibold text-sm">Lvl {levelProgress.level}</span>
-            </div>
-            <span className="text-yellow-400 font-bold text-sm">{totalXP.toLocaleString()} XP</span>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#FFF6EC]">
+      <AppHeader />
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4 pb-16">
         <WeekSection

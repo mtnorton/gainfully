@@ -25,6 +25,14 @@ export const BUILT_IN_ACTIVITIES: Partial<Record<TaskCategory, { name: string; x
     { name: 'Update or tailor my resume', xp: 25 },
     { name: 'Define consulting service offerings', xp: 30 },
     { name: 'Draft a consulting proposal or SOW', xp: 40 },
+    { name: 'Complete a freelance or contract gig', xp: 35 },
+  ],
+  skills: [
+    { name: 'Complete an online course module', xp: 15 },
+    { name: 'Work on a portfolio project', xp: 30 },
+    { name: 'Study for a certification', xp: 20 },
+    { name: 'Practice a technical skill', xp: 20 },
+    { name: 'Build something to showcase', xp: 35 },
   ],
   research: [
     { name: 'Research a target company', xp: 15 },
@@ -32,6 +40,13 @@ export const BUILT_IN_ACTIVITIES: Partial<Record<TaskCategory, { name: string; x
     { name: 'Build or update your target company list', xp: 20 },
     { name: 'Research potential consulting clients', xp: 15 },
     { name: 'Map out target consulting verticals', xp: 20 },
+  ],
+  hustle: [
+    { name: 'Complete a freelance project', xp: 40 },
+    { name: 'Apply to a part-time or contract role', xp: 20 },
+    { name: 'Run a paid consulting session', xp: 35 },
+    { name: 'Do a gig economy task for pay', xp: 25 },
+    { name: 'Invoice a client or follow up on payment', xp: 15 },
   ],
   selfcare: [
     { name: 'Drink a glass of water', xp: 5 },

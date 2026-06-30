@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Task, Badge, CompletionEvent, CustomActivity } from '@/lib/types';
 import { Outcome, OutcomeResult, OutcomeType, OUTCOME_CONFIG, getOutcomeMessage } from '@/lib/outcomes';
-import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges } from '@/lib/gameLogic';
-import { getRandomEncouragement } from '@/lib/encouragements';
-import XPBar from '@/components/XPBar';
-import StatsRow from '@/components/StatsRow';
+import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
+import { getRandomEncouragement, getRandomCelebration } from '@/lib/encouragements';
+import { SLOTS_PICK_KEY, DailyPick } from '@/app/games/slots/page';
+import AppHeader from '@/components/AppHeader';
 import TaskCard from '@/components/TaskCard';
 import AddTaskModal from '@/components/AddTaskModal';
 import EncouragementModal from '@/components/EncouragementModal';
@@ -17,9 +16,24 @@ import ActivityFeed from '@/components/ActivityFeed';
 import StreakCard from '@/components/StreakCard';
 import ManageActivitiesModal from '@/components/ManageActivitiesModal';
 import OnboardingModal from '@/components/OnboardingModal';
+import ConsentModal from '@/components/ConsentModal';
+import { loadState, saveState, loadConsentStatus } from '@/lib/supabase/storage';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function getSlotsBonus(taskName: string): number {
+  try {
+    const raw = localStorage.getItem(SLOTS_PICK_KEY);
+    if (!raw) return 0;
+    const pick: DailyPick = JSON.parse(raw);
+    if (pick.claimed) return 0;
+    if (pick.date === new Date().toISOString().split('T')[0] && pick.activityName === taskName) {
+      return pick.bonusXP;
+    }
+  } catch { /* ignore */ }
+  return 0;
 }
 
 interface AppState {
@@ -30,8 +44,6 @@ interface AppState {
   customActivities: CustomActivity[];
   xpOverrides: Record<string, number>;
 }
-
-const STORAGE_KEY = 'gainfully-state';
 
 function buildDefaultState(): AppState {
   return { tasks: [], outcomes: [], totalXP: 0, badges: getInitialBadges(), customActivities: [], xpOverrides: {} };
@@ -45,9 +57,10 @@ export default function Home() {
   // null = closed, undefined = open with no preselection, string = open for specific task
   const [logOutcomeTaskId, setLogOutcomeTaskId] = useState<string | null | undefined>(null);
   const [outcomeResult, setOutcomeResult] = useState<OutcomeResult | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(true);
 
   const handleOnboardingClose = useCallback(() => {
     localStorage.setItem('gainfully-onboarded', '1');
@@ -55,12 +68,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as AppState;
+    async function init() {
+      const [data, consent] = await Promise.all([loadState(), loadConsentStatus()]);
+      setIsSignedIn(consent?.signedIn ?? false);
+      if (consent?.signedIn && !consent.consented) setShowConsent(true);
+      if (data) {
+        const parsed = data as unknown as AppState;
         const mergedBadges = getInitialBadges().map((b) => {
-          const savedBadge = parsed.badges?.find((sb) => sb.id === b.id);
+          const savedBadge = (parsed.badges ?? []).find((sb) => sb.id === b.id);
           return savedBadge ?? b;
         });
         setState({
@@ -71,19 +86,24 @@ export default function Home() {
           customActivities: parsed.customActivities ?? [],
           xpOverrides: parsed.xpOverrides ?? {},
         });
-      } catch {
-        // Ignore corrupted storage
       }
+      if (!localStorage.getItem('gainfully-onboarded')) {
+        setShowOnboarding(true);
+      }
+      setMounted(true);
     }
-    if (!localStorage.getItem('gainfully-onboarded')) {
-      setShowOnboarding(true);
-    }
-    setMounted(true);
+    init();
   }, []);
+
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!mounted) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveState(state);
+    }, 1500);
+    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
   }, [state, mounted]);
 
   const handleAddTask = useCallback(
@@ -101,9 +121,11 @@ export default function Home() {
 
   const handleLogNow = useCallback(
     (taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>) => {
+      const slotsBonus = getSlotsBonus(taskData.name);
+      const adjustedData = slotsBonus > 0 ? { ...taskData, xp: taskData.xp + slotsBonus } : taskData;
       setState((prev) => {
         const now = new Date().toISOString();
-        const newTask: Task = { ...taskData, id: generateId(), completed: true, completedAt: now, createdAt: now };
+        const newTask: Task = { ...adjustedData, id: generateId(), completed: true, completedAt: now, createdAt: now };
 
         const newTotalXP = prev.totalXP + newTask.xp;
         const oldLevel = getLevel(prev.totalXP);
@@ -112,7 +134,7 @@ export default function Home() {
         const newBadges = checkForNewBadges(completedTasks, newTask, prev.badges, newTotalXP);
 
         const allTasks = [newTask, ...prev.tasks];
-        const newStreak = calculateStreak(allTasks);
+        const newStreak = calculateStreak(allTasks, prev.outcomes);
         const allCompleted = allTasks.filter((t) => t.completed);
         const streakBadges = checkForStreakBadges(newStreak, allCompleted, prev.badges);
         const allNewBadges = [...newBadges, ...streakBadges];
@@ -129,6 +151,7 @@ export default function Home() {
             leveledUp: newLevel > oldLevel,
             newLevel,
             message: getRandomEncouragement(),
+            celebration: getRandomCelebration(),
           });
         }, 0);
 
@@ -143,16 +166,19 @@ export default function Home() {
       const task = prev.tasks.find((t) => t.id === taskId);
       if (!task || task.completed) return prev;
 
-      const newTotalXP = prev.totalXP + task.xp;
+      const slotsBonus = getSlotsBonus(task.name);
+      const taskXP = task.xp + slotsBonus;
+      const newTotalXP = prev.totalXP + taskXP;
       const oldLevel = getLevel(prev.totalXP);
       const newLevel = getLevel(newTotalXP);
       const completedTasks = prev.tasks.filter((t) => t.completed);
-      const newBadges = checkForNewBadges(completedTasks, task, prev.badges, newTotalXP);
+      const taskWithBonus = slotsBonus > 0 ? { ...task, xp: taskXP } : task;
+      const newBadges = checkForNewBadges(completedTasks, taskWithBonus, prev.badges, newTotalXP);
 
       const updatedTasks = prev.tasks.map((t) =>
-        t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString() } : t
+        t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), xp: taskXP } : t
       );
-      const newStreak = calculateStreak(updatedTasks);
+      const newStreak = calculateStreak(updatedTasks, prev.outcomes);
       const allCompleted = updatedTasks.filter((t) => t.completed);
       const streakBadges = checkForStreakBadges(newStreak, allCompleted, prev.badges);
       const allNewBadges = [...newBadges, ...streakBadges];
@@ -164,11 +190,12 @@ export default function Home() {
       setTimeout(() => {
         setCompletionEvent({
           taskName: task.name,
-          xpEarned: task.xp,
+          xpEarned: taskXP,
           newBadges: allNewBadges,
           leveledUp: newLevel > oldLevel,
           newLevel,
           message: getRandomEncouragement(),
+          celebration: getRandomCelebration(),
         });
       }, 0);
 
@@ -232,15 +259,20 @@ export default function Home() {
         const newTotalXP = prev.totalXP + config.xp;
         const oldLevel = getLevel(prev.totalXP);
         const newLevel = getLevel(newTotalXP);
-        const newBadges = checkForNewBadgesOnOutcome(
+        const outcomeBadges = checkForNewBadgesOnOutcome(
           prev.outcomes,
           newOutcome,
           prev.badges,
           newTotalXP
         );
 
+        const allOutcomes = [...prev.outcomes, newOutcome];
+        const newStreak = calculateStreak(prev.tasks, allOutcomes);
+        const streakBadges = checkForStreakBadges(newStreak, prev.tasks.filter((t) => t.completed), prev.badges);
+        const allNewBadges = [...outcomeBadges, ...streakBadges];
+
         const updatedBadges = prev.badges.map((b) => {
-          const fresh = newBadges.find((nb) => nb.id === b.id);
+          const fresh = allNewBadges.find((nb) => nb.id === b.id);
           return fresh ?? b;
         });
 
@@ -250,7 +282,7 @@ export default function Home() {
             type,
             xpAwarded: config.xp,
             message: getOutcomeMessage(type),
-            newBadges,
+            newBadges: allNewBadges,
             leveledUp: newLevel > oldLevel,
             newLevel,
           });
@@ -258,7 +290,7 @@ export default function Home() {
 
         return {
           ...prev,
-          outcomes: [...prev.outcomes, newOutcome],
+          outcomes: allOutcomes,
           totalXP: newTotalXP,
           badges: updatedBadges,
         };
@@ -269,8 +301,10 @@ export default function Home() {
 
   const activeTasks = state.tasks.filter((t) => !t.completed);
   const completedTasks = state.tasks.filter((t) => t.completed);
+  const GAME_TASK_NAMES = GAME_ONLY_TASK_NAMES;
+  const completedNonGameCount = completedTasks.filter((t) => !GAME_TASK_NAMES.has(t.name)).length;
   const levelProgress = getLevelProgress(state.totalXP);
-  const streak = calculateStreak(state.tasks);
+  const streak = calculateStreak(state.tasks, state.outcomes);
 
   const logOutcomeModalOpen = logOutcomeTaskId !== null;
   const preselectedTask =
@@ -283,78 +317,75 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/60">
-        <div className="max-w-2xl mx-auto px-4 flex flex-wrap items-center py-2 gap-y-1 sm:flex-nowrap sm:h-16 sm:py-0">
-          <div className="flex items-center gap-2 order-1">
-            <span className="text-2xl">💼</span>
-            <span className="text-xl font-bold text-slate-100 tracking-tight">Gainfully</span>
-          </div>
-          <nav className="flex gap-0.5 w-full sm:w-auto sm:ml-4 order-3 sm:order-2 pb-1 sm:pb-0">
-            <span className="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-slate-100 font-medium">Dashboard</span>
-            <Link href="/pipeline" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Pipeline</Link>
-            <Link href="/progress" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Progress</Link>
-            <Link href="/badges" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
-              Badges{state.badges.filter((b) => b.earned).length > 0 && (
-                <span className="ml-1.5 text-amber-400 font-bold">{state.badges.filter((b) => b.earned).length}</span>
-              )}
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-3 order-2 sm:order-3">
-            <div className="flex items-center gap-1.5 bg-violet-600/20 border border-violet-500/30 rounded-full px-3 py-1">
-              <span className="text-violet-300 font-semibold text-sm">Lvl {levelProgress.level}</span>
-            </div>
-            <span className="text-yellow-400 font-bold text-sm">{state.totalXP.toLocaleString()} XP</span>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#FFF6EC]">
+      <AppHeader />
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-16">
-        <p className="text-slate-500 text-sm text-center">
-          Your job search, gamified — complete tasks, earn XP, and keep moving forward.
-        </p>
+        <div className="rounded-[22px] bg-[#EEE7FF] px-6 py-5 flex items-center justify-between gap-4" style={{ border: '2px solid #D4C7FF', minHeight: '90px', overflow: 'hidden' }}>
+          <p className="font-fredoka font-bold text-[28px] leading-tight text-[#2C2724]">
+            Your job search,<br />gamified.
+          </p>
+          <div className="flex-shrink-0 flex items-end -mr-4 -mb-5 -mt-5">
 
-        <XPBar
-          level={levelProgress.level}
-          current={levelProgress.current}
-          needed={levelProgress.needed}
-          percentage={levelProgress.percentage}
-          totalXP={state.totalXP}
-        />
+            <img
+              src="/dr_doomscroll.png"
+              alt="Dr. Doomscroll"
+              className="h-[60px] w-auto relative -ml-12"
+              style={{ zIndex: 1 }}
+            />
+            <img
+              src="/mvuu.png"
+              alt="Mvuu"
+              className="h-[130px] w-auto relative -ml-12"
+              style={{ zIndex: 3 }}
+            />
+            <img
+              src="/fulu.png"
+              alt="Fulu"
+              className="h-[120px] w-auto relative -ml-16"
+              style={{ zIndex: 2 }}
+            />
+
+          </div>
+        </div>
+
+        {!isSignedIn && (
+          <div
+            className="rounded-[16px] px-4 py-3 text-center text-[13px] text-[#6f6155]"
+            style={{ background: '#FFF0E0', border: '2px solid #EFE0CC' }}
+          >
+            Play away — but you&apos;ll need to{' '}
+            <button
+              onClick={() => document.querySelector<HTMLButtonElement>('[aria-label="User profile"]')?.click()}
+              className="font-semibold text-[#7C5CFC] underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              sign in
+            </button>
+            {' '}to save your progress.
+          </div>
+        )}
 
         <StreakCard streak={streak} />
-
-        <StatsRow
-          level={levelProgress.level}
-          tasksCompleted={completedTasks.length}
-          badgesEarned={state.badges.filter((b) => b.earned).length}
-          resultsLogged={state.outcomes.length}
-        />
 
         {/* Activity log / planned tasks */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-slate-100 font-semibold">
-              Planned
-              {activeTasks.length > 0 && (
-                <span className="ml-2 text-sm text-slate-400 font-normal">
-                  {activeTasks.length}
-                </span>
-              )}
+            <h2 className="font-fredoka font-bold text-[17px] text-[#2C2724]">
+              Planned{activeTasks.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{activeTasks.length}</span>}
             </h2>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl text-white text-sm font-fredoka font-semibold transition-colors"
+              style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
             >
               + Log Activity
             </button>
           </div>
 
           {activeTasks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-700/60 p-8 text-center">
-              <p className="text-slate-400 text-sm font-medium mb-0.5">Nothing planned yet.</p>
-              <p className="text-slate-500 text-sm">Log what you just did, or plan something for later.</p>
+            <div className="rounded-[18px] p-8 text-center" style={{ border: '2px dashed #EFE0CC' }}>
+              <p className="text-[#2C2724] font-fredoka font-semibold mb-0.5">Nothing planned yet.</p>
+              <p className="text-[#97887A] text-sm">Log what you just did, or plan something for later.</p>
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -375,50 +406,19 @@ export default function Home() {
         {/* Results / activity feed */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-slate-100 font-semibold">
-              Results
-              {state.outcomes.length > 0 && (
-                <span className="ml-2 text-sm text-slate-400 font-normal">
-                  {state.outcomes.length}
-                </span>
-              )}
+            <h2 className="font-fredoka font-bold text-[17px] text-[#2C2724]">
+              Results{state.outcomes.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{state.outcomes.length}</span>}
             </h2>
             <button
               onClick={() => setLogOutcomeTaskId(undefined)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl text-[#6f6155] text-sm font-fredoka font-semibold transition-colors hover:bg-[#F2E8DB]"
+              style={{ background: '#fff', border: '2px solid #EFE0CC' }}
             >
               + Log a Result
             </button>
           </div>
           <ActivityFeed outcomes={state.outcomes} tasks={state.tasks} />
         </section>
-
-        {/* Completed tasks (collapsible) */}
-        {completedTasks.length > 0 && (
-          <section>
-            <button
-              onClick={() => setShowCompleted((v) => !v)}
-              className="flex items-center gap-2 text-slate-400 hover:text-slate-300 text-sm font-medium transition-colors mb-3"
-            >
-              <span className="text-xs">{showCompleted ? '▾' : '▸'}</span>
-              Completed tasks ({completedTasks.length})
-            </button>
-            {showCompleted && (
-              <div className="space-y-2.5">
-                {completedTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    outcomes={taskOutcomes(task.id)}
-                    onComplete={handleCompleteTask}
-                    onDelete={handleDeleteTask}
-                    onLogOutcome={(taskId) => setLogOutcomeTaskId(taskId)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
 
       </main>
 
@@ -456,6 +456,7 @@ export default function Home() {
         onClose={() => setOutcomeResult(null)}
       />
       {showOnboarding && <OnboardingModal onClose={handleOnboardingClose} />}
+      {showConsent && <ConsentModal onDone={() => setShowConsent(false)} />}
     </div>
   );
 }

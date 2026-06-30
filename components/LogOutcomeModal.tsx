@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Task, CATEGORY_CONFIG } from '@/lib/types';
 import { OutcomeType, OUTCOME_CONFIG } from '@/lib/outcomes';
+import { GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
 
 interface LogOutcomeModalProps {
   isOpen: boolean;
@@ -12,20 +13,29 @@ interface LogOutcomeModalProps {
   onLog: (taskId: string, type: OutcomeType, date: string, notes: string) => void;
 }
 
-const OUTCOME_GROUPS: { label: string; types: OutcomeType[] }[] = [
-  {
-    label: 'Positive news',
-    types: ['interview', 'second_interview', 'offer', 'response', 'referral'],
-  },
-  {
-    label: 'Tough but normal',
-    types: ['rejection', 'ghosted', 'position_closed', 'other'],
-  },
-  {
-    label: 'Recruiter nonsense',
-    types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'],
-  },
+type OutcomeGroup = { label: string; types: OutcomeType[] };
+
+const NETWORKING_GROUPS: OutcomeGroup[] = [
+  { label: 'Networking wins', types: ['coffee_chat', 'informational_interview', 'intro_made', 'response', 'referral'] },
+  { label: 'No response', types: ['ghosted', 'other'] },
 ];
+
+const APPLICATION_GROUPS: OutcomeGroup[] = [
+  { label: 'Positive news', types: ['interview', 'technical_screening', 'technical_interview', 'second_interview', 'offer', 'response', 'referral'] },
+  { label: 'Tough but normal', types: ['rejection', 'ghosted', 'position_closed', 'other'] },
+  { label: 'Recruiter nonsense', types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'] },
+];
+
+const DEFAULT_GROUPS: OutcomeGroup[] = [
+  { label: 'Positive news', types: ['interview', 'technical_screening', 'technical_interview', 'second_interview', 'offer', 'response', 'referral'] },
+  { label: 'Recruiter nonsense', types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'] },
+];
+
+function groupsFor(category?: string): OutcomeGroup[] {
+  if (category === 'networking') return NETWORKING_GROUPS;
+  if (category === 'application') return APPLICATION_GROUPS;
+  return DEFAULT_GROUPS;
+}
 
 const NOTES_PLACEHOLDERS: Partial<Record<OutcomeType, string>> = {
   rejection: 'Any feedback you received?',
@@ -62,13 +72,17 @@ export default function LogOutcomeModal({
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div
+        className="relative z-10 w-full max-w-lg bg-white rounded-[22px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+        style={{ border: '2px solid #F1E2CF' }}
+      >
 
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-xl font-bold text-slate-100">Log a Result</h2>
+          <h2 className="font-fredoka font-bold text-[20px] text-[#2C2724]">Log a Result</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 flex items-center justify-center text-xl leading-none transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-xl leading-none text-[#97887A] hover:text-[#2C2724] transition-colors"
+            style={{ background: '#F2E8DB' }}
           >
             ×
           </button>
@@ -77,9 +91,9 @@ export default function LogOutcomeModal({
         {/* Task — either shown as a label (preselected) or a picker */}
         {preselectedTask ? (
           <div className="mb-5">
-            <p className="text-slate-400 text-sm truncate">{preselectedTask.name}</p>
+            <p className="text-[#6f6155] text-sm truncate font-semibold">{preselectedTask.name}</p>
             {(preselectedTask.company || preselectedTask.jobTitle || preselectedTask.activityDate) && (
-              <p className="text-slate-500 text-xs mt-0.5">
+              <p className="text-[#A99C8D] text-xs mt-0.5">
                 {[
                   preselectedTask.company,
                   preselectedTask.jobTitle,
@@ -94,21 +108,22 @@ export default function LogOutcomeModal({
           </div>
         ) : (
           <div className="mb-5">
-            <label className="block text-slate-400 text-xs uppercase tracking-wider font-medium mb-2">
+            <label className="block text-[#A99C8D] text-xs uppercase tracking-wider font-bold mb-2">
               Which task had a result?
             </label>
-            {completedTasks.length === 0 ? (
-              <p className="text-slate-500 text-sm italic py-2">
+            {completedTasks.filter((t) => !GAME_ONLY_TASK_NAMES.has(t.name)).length === 0 ? (
+              <p className="text-[#97887A] text-sm italic py-2">
                 No completed tasks yet — complete a task first, then log what happened.
               </p>
             ) : (
               <select
                 value={pickedTaskId}
                 onChange={(e) => setPickedTaskId(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-4 py-2.5 text-slate-100 outline-none transition-colors"
+                className="w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] outline-none transition-colors text-sm"
+                style={{ border: '2px solid #F1E2CF' }}
               >
                 <option value="">Select a task...</option>
-                {completedTasks.map((t) => {
+                {completedTasks.filter((t) => !GAME_ONLY_TASK_NAMES.has(t.name)).map((t) => {
                   const detail = [
                     t.company,
                     t.jobTitle,
@@ -131,9 +146,9 @@ export default function LogOutcomeModal({
 
         {/* Outcome type picker — dimmed until a task is selected */}
         <div className={activeTask ? '' : 'opacity-40 pointer-events-none'}>
-          {OUTCOME_GROUPS.map((group) => (
+          {groupsFor(activeTask?.category).map((group) => (
             <div key={group.label} className="mb-4">
-              <p className="text-slate-500 text-xs uppercase tracking-wider font-medium mb-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
                 {group.label}
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -146,21 +161,18 @@ export default function LogOutcomeModal({
                       onClick={() => setSelectedType(type)}
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
                         isSelected
-                          ? 'bg-violet-600/20 border-violet-500/60 ring-1 ring-violet-500/30'
-                          : 'bg-slate-800/60 border-slate-700/50 hover:border-slate-600/60'
+                          ? `${config.colorClasses} ring-2 ring-[#7C5CFC] ring-offset-1`
+                          : 'bg-white hover:bg-[#FBF3E8]'
                       }`}
+                      style={!isSelected ? { border: '2px solid #F1E2CF' } : undefined}
                     >
                       <span className="text-xl flex-shrink-0">{config.icon}</span>
                       <div>
-                        <div
-                          className={`text-sm font-medium leading-tight ${
-                            isSelected ? 'text-slate-100' : 'text-slate-300'
-                          }`}
-                        >
+                        <div className="font-fredoka font-semibold text-sm leading-tight text-[#2C2724]">
                           {config.label}
                         </div>
                         {config.xp > 0 && (
-                          <div className="text-yellow-400/70 text-xs mt-0.5">{config.xpLabel}</div>
+                          <div className="text-[#F5A300] text-xs font-bold mt-0.5">{config.xpLabel}</div>
                         )}
                       </div>
                     </button>
@@ -171,20 +183,21 @@ export default function LogOutcomeModal({
           ))}
 
           {selectedType && (
-            <div className="space-y-3 mt-2 pt-4 border-t border-slate-800">
+            <div className="space-y-3 mt-2 pt-4" style={{ borderTop: '2px solid #F1E2CF' }}>
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Date</label>
+                <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-4 py-2.5 text-slate-100 outline-none transition-colors"
+                  className="w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] outline-none transition-colors text-sm"
+                  style={{ border: '2px solid #F1E2CF' }}
                 />
               </div>
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">
+                <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
                   Notes{' '}
-                  <span className="text-slate-500 font-normal">(optional)</span>
+                  <span className="text-[#A99C8D] font-normal">(optional)</span>
                 </label>
                 <textarea
                   value={notes}
@@ -192,7 +205,8 @@ export default function LogOutcomeModal({
                   placeholder={placeholder}
                   rows={2}
                   maxLength={300}
-                  className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 outline-none transition-colors resize-none"
+                  className="w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] placeholder-[#C4B5A5] outline-none transition-colors resize-none text-sm"
+                  style={{ border: '2px solid #F1E2CF' }}
                 />
               </div>
             </div>
@@ -203,14 +217,16 @@ export default function LogOutcomeModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors font-medium"
+            className="flex-1 py-2.5 rounded-xl text-[#97887A] hover:text-[#2C2724] transition-colors font-semibold text-sm"
+            style={{ background: '#F2E8DB', border: '2px solid #EFE0CC' }}
           >
             Cancel
           </button>
           <button
             onClick={handleLog}
             disabled={!activeTask || !selectedType}
-            className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition-colors"
+            className="flex-1 py-2.5 rounded-xl text-white font-fredoka font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+            style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
           >
             Log It
           </button>

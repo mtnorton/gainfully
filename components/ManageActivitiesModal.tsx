@@ -17,13 +17,13 @@ interface ManageActivitiesModalProps {
 const GROUPS: {
   key: string;
   label: string;
-  labelClass: string;
+  labelColor: string;
   defaultCategory: TaskCategory;
   categories: TaskCategory[];
 }[] = [
-  { key: 'advance', label: 'Advance', labelClass: 'text-blue-400',   defaultCategory: 'application', categories: ['application', 'networking'] },
-  { key: 'build',   label: 'Build',   labelClass: 'text-yellow-400', defaultCategory: 'preparation', categories: ['preparation', 'research'] },
-  { key: 'sustain', label: 'Sustain', labelClass: 'text-rose-400',   defaultCategory: 'selfcare',    categories: ['selfcare'] },
+  { key: 'advance', label: 'Advance', labelColor: '#2563EB', defaultCategory: 'application', categories: ['application', 'networking'] },
+  { key: 'build',   label: 'Build',   labelColor: '#16A34A', defaultCategory: 'preparation', categories: ['preparation', 'research'] },
+  { key: 'sustain', label: 'Sustain', labelColor: '#7C5CFC', defaultCategory: 'selfcare',    categories: ['selfcare'] },
 ];
 
 export default function ManageActivitiesModal({
@@ -56,20 +56,26 @@ export default function ManageActivitiesModal({
     setNewXP(CATEGORY_CONFIG[selectedGroup.defaultCategory].defaultXP);
   };
 
+  const inputStyle = { border: '2px solid #F1E2CF' };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative z-10 w-full max-w-lg bg-white rounded-[22px] shadow-2xl max-h-[90vh] flex flex-col"
+        style={{ border: '2px solid #F1E2CF' }}
+      >
 
         {/* Header */}
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0" style={{ borderBottom: '2px solid #F1E2CF' }}>
           <div>
-            <h2 className="text-xl font-bold text-slate-100">Manage Activities</h2>
-            <p className="text-slate-500 text-xs mt-0.5">Edit XP for any activity, or add your own.</p>
+            <h2 className="font-fredoka font-bold text-[20px] text-[#2C2724]">Manage Activities</h2>
+            <p className="text-[#97887A] text-xs mt-0.5">Edit XP for any activity, or add your own.</p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 flex items-center justify-center text-xl leading-none transition-colors flex-shrink-0"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-xl leading-none text-[#97887A] hover:text-[#2C2724] transition-colors flex-shrink-0"
+            style={{ background: '#F2E8DB' }}
           >
             ×
           </button>
@@ -86,7 +92,7 @@ export default function ManageActivitiesModal({
 
             return (
               <div key={group.key}>
-                <p className={`text-xs uppercase tracking-wider font-semibold mb-2 ${group.labelClass}`}>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest mb-2" style={{ color: group.labelColor }}>
                   {group.label}
                 </p>
                 <div className="space-y-1.5">
@@ -96,16 +102,17 @@ export default function ManageActivitiesModal({
                     return (
                       <div
                         key={activity.name}
-                        className="flex items-center gap-3 bg-slate-800/40 border border-slate-700/40 rounded-xl px-4 py-2.5"
+                        className="flex items-center gap-3 bg-[#FBF3E8] rounded-xl px-4 py-2.5"
+                        style={{ border: '2px solid #F1E2CF' }}
                       >
-                        <span className="text-slate-300 text-sm flex-1 min-w-0 truncate">
+                        <span className="text-[#2C2724] text-sm flex-1 min-w-0 truncate font-semibold">
                           {activity.name}
                         </span>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {isOverridden && (
                             <button
                               onClick={() => onSetOverride(activity.name, activity.xp, activity.xp)}
-                              className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                              className="text-xs text-[#97887A] hover:text-[#2C2724] transition-colors"
                               title={`Reset to default (${activity.xp} XP)`}
                             >
                               ↩ {activity.xp}
@@ -121,9 +128,10 @@ export default function ManageActivitiesModal({
                               const v = Math.max(1, parseInt(e.target.value) || 1);
                               onSetOverride(activity.name, v, activity.xp);
                             }}
-                            className="w-14 bg-slate-700 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-yellow-400 font-bold text-xs text-center outline-none"
+                            className="w-14 bg-white rounded-lg px-2 py-1 text-[#F5A300] font-bold text-xs text-center outline-none"
+                            style={{ border: '2px solid #EFE0CC' }}
                           />
-                          <span className="text-slate-500 text-xs">XP</span>
+                          <span className="text-[#A99C8D] text-xs font-bold">XP</span>
                         </div>
                       </div>
                     );
@@ -132,14 +140,16 @@ export default function ManageActivitiesModal({
                   {custom.map((a) => (
                     <div
                       key={a.id}
-                      className="flex items-center gap-3 bg-violet-600/10 border border-violet-500/20 rounded-xl px-4 py-2.5"
+                      className="flex items-center gap-3 rounded-xl px-4 py-2.5"
+                      style={{ background: '#EEE7FF', border: '2px solid #D4C7FF' }}
                     >
-                      <span className="text-slate-200 text-sm flex-1 min-w-0 truncate">{a.name}</span>
+                      <span className="text-[#5B3FD6] font-semibold text-sm flex-1 min-w-0 truncate">{a.name}</span>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-yellow-400 font-bold text-xs">{a.xp} XP</span>
+                        <span className="text-[#F5A300] font-bold text-xs">{a.xp} XP</span>
                         <button
                           onClick={() => onDelete(a.id)}
-                          className="w-6 h-6 rounded-lg bg-slate-700/50 hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors flex items-center justify-center text-base leading-none"
+                          className="w-6 h-6 rounded-lg flex items-center justify-center text-base leading-none transition-colors text-[#97887A] hover:text-red-500"
+                          style={{ background: '#F2E8DB' }}
                           aria-label="Remove"
                         >
                           ×
@@ -154,14 +164,15 @@ export default function ManageActivitiesModal({
         </div>
 
         {/* Add custom activity */}
-        <div className="p-6 pt-4 border-t border-slate-800 space-y-3">
-          <p className="text-slate-400 text-xs uppercase tracking-wider font-medium">
+        <div className="p-6 pt-4 flex-shrink-0 space-y-3" style={{ borderTop: '2px solid #F1E2CF' }}>
+          <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D]">
             Add a custom activity
           </p>
           <select
             value={newGroup}
             onChange={(e) => handleGroupChange(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-3 py-2 text-slate-100 outline-none transition-colors text-sm"
+            className="w-full bg-white rounded-xl px-3 py-2 text-[#2C2724] outline-none transition-colors text-sm font-semibold"
+            style={inputStyle}
           >
             {GROUPS.map((g) => (
               <option key={g.key} value={g.key}>{g.label}</option>
@@ -173,22 +184,25 @@ export default function ManageActivitiesModal({
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder="Activity name..."
-            className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 outline-none transition-colors"
+            className="w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] placeholder-[#C4B5A5] outline-none transition-colors text-sm"
+            style={inputStyle}
           />
           <div className="flex items-center gap-3">
-            <label className="text-slate-300 text-sm font-medium whitespace-nowrap">XP value</label>
+            <label className="text-[#6f6155] text-sm font-bold whitespace-nowrap">XP value</label>
             <input
               type="number"
               min={1}
               max={500}
               value={newXP}
               onChange={(e) => setNewXP(Math.max(1, Number(e.target.value)))}
-              className="w-20 bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-3 py-2 text-yellow-400 font-bold text-sm outline-none transition-colors"
+              className="w-20 bg-white rounded-xl px-3 py-2 text-[#F5A300] font-bold text-sm outline-none transition-colors"
+              style={inputStyle}
             />
             <button
               onClick={handleAdd}
               disabled={!newName.trim()}
-              className="ml-auto px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
+              className="ml-auto px-5 py-2 rounded-xl text-white font-fredoka font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
             >
               Add
             </button>
@@ -198,7 +212,8 @@ export default function ManageActivitiesModal({
         <div className="px-6 pb-6">
           <button
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors font-medium"
+            className="w-full py-2.5 rounded-xl text-[#97887A] hover:text-[#2C2724] transition-colors font-semibold text-sm"
+            style={{ background: '#F2E8DB', border: '2px solid #EFE0CC' }}
           >
             Done
           </button>

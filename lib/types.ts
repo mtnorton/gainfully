@@ -1,44 +1,56 @@
-export type TaskCategory = 'application' | 'networking' | 'preparation' | 'research' | 'selfcare' | 'custom';
+export type TaskCategory = 'application' | 'networking' | 'preparation' | 'research' | 'skills' | 'selfcare' | 'hustle' | 'custom';
 
 export const CATEGORY_CONFIG: Record<
   TaskCategory,
   { label: string; icon: string; defaultXP: number; colorClasses: string }
 > = {
   application: {
-    label: 'Job Application',
-    icon: '📄',
+    label: 'Application',
+    icon: '📋',
     defaultXP: 50,
-    colorClasses: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    colorClasses: 'bg-[#E4EDFF] text-[#2563EB] border-[#C5D9FF]',
   },
   networking: {
     label: 'Networking',
     icon: '🤝',
     defaultXP: 20,
-    colorClasses: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+    colorClasses: 'bg-[#FBEFC9] text-[#B45309] border-[#F3D88E]',
   },
   preparation: {
-    label: 'Interview Prep',
-    icon: '📚',
+    label: 'Preparation',
+    icon: '🎯',
     defaultXP: 25,
-    colorClasses: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+    colorClasses: 'bg-[#FFE6D3] text-[#EA580C] border-[#F9C9A3]',
   },
   research: {
     label: 'Research',
     icon: '🔍',
     defaultXP: 15,
-    colorClasses: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    colorClasses: 'bg-[#CFF5EF] text-[#0D9488] border-[#9FE8E0]',
+  },
+  skills: {
+    label: 'Skills',
+    icon: '💡',
+    defaultXP: 20,
+    colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
   },
   selfcare: {
     label: 'Self-Care',
-    icon: '❤️',
+    icon: '🌿',
     defaultXP: 5,
-    colorClasses: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+    colorClasses: 'bg-[#EEE7FF] text-[#7C5CFC] border-[#D4C7FF]',
+  },
+  hustle: {
+    label: 'Hustle',
+    icon: '💰',
+    defaultXP: 25,
+    colorClasses: 'bg-[#FEF3C7] text-[#D97706] border-[#FCD34D]',
   },
   custom: {
     label: 'Custom Task',
     icon: '⭐',
     defaultXP: 10,
-    colorClasses: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+    colorClasses: 'bg-[#F3ECFF] text-[#7C5CFC] border-[#E2D4FF]',
   },
 };
 
@@ -114,4 +126,5 @@ export interface CompletionEvent {
   leveledUp: boolean;
   newLevel: number;
   message: string;
+  celebration: string;
 }

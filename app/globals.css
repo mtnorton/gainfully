@@ -1,34 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020617;
-  --foreground: #f1f5f9;
+  --background: #FFF6EC;
+  --foreground: #2C2724;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
+  --font-fredoka: var(--font-fredoka);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans, Arial, sans-serif);
+  font-family: var(--font-nunito, Nunito, Arial, sans-serif);
 }
 
 @keyframes modalIn {
-  from {
-    opacity: 0;
-    transform: scale(0.92) translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);     }
 }
 
-.animate-modal-in {
-  animation: modalIn 0.2s ease-out both;
+@keyframes mvuuPop {
+  0%   { transform: scale(.9); }
+  60%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
 }
+
+@keyframes mvuuWiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50%       { transform: rotate(3deg); }
+}
+
+.animate-modal-in  { animation: modalIn    0.2s ease-out both; }
+.animate-mvuu-pop  { animation: mvuuPop    0.6s ease both; }
+.animate-wiggle    { animation: mvuuWiggle 1.6s ease-in-out infinite; }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

@@ -1,60 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 interface OnboardingModalProps {
   onClose: () => void;
 }
 
-const STEPS = [
+type Step =
+  | { type: 'mvuu' }
+  | { type: 'info'; emoji: string; text: ReactNode };
+
+const o = (t: string) => <span style={{ color: '#FF6B4A', fontWeight: 600 }}>{t}</span>;
+const g = (t: string) => <span style={{ color: '#16A34A', fontWeight: 600 }}>{t}</span>;
+
+const STEPS: Step[] = [
+  { type: 'mvuu' },
   {
-    icon: '💼',
-    title: 'Welcome to Gainfully',
-    body: 'Your job search, gamified. Turn every application, networking call, and prep session into XP — and watch your progress stack up.',
-    extra: null,
+    type: 'info',
+    emoji: '📋',
+    text: <>Log {g('activities')} like {g('applications')} and {g('networking')}. The {o('meaningless XP')} will make it seem {o('less futile')}!</>,
   },
   {
-    icon: '⚡',
-    title: 'Complete Tasks, Earn XP',
-    body: 'Add a task for every job search action and complete it to earn XP and level up. Six categories to track — including self-care, because you can\'t search on empty.',
-    extra: (
-      <div className="flex flex-wrap justify-center gap-2 mt-4">
-        {[
-          { icon: '📄', label: 'Application' },
-          { icon: '🤝', label: 'Networking' },
-          { icon: '📚', label: 'Interview Prep' },
-          { icon: '❤️', label: 'Self-Care' },
-        ].map(({ icon, label }) => (
-          <span
-            key={label}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300"
-          >
-            {icon} {label}
-          </span>
-        ))}
-      </div>
-    ),
+    type: 'info',
+    emoji: '🏆',
+    text: <>Earn {g('badges')} and check your {g('progress')} as you settle in for another week of {o('drudgery')}!</>,
   },
   {
-    icon: '🏆',
-    title: 'Track Results, Share Wins',
-    body: 'Log outcomes on any task — interviews, offers, even rejections. The hard ones earn Resilience XP too. Check your weekly Progress page and share your momentum.',
-    extra: (
-      <div className="flex flex-wrap justify-center gap-2 mt-4">
-        {[
-          { icon: '📅', label: 'Interview' },
-          { icon: '🎉', label: 'Offer' },
-          { icon: '💪', label: 'Rejection' },
-        ].map(({ icon, label }) => (
-          <span
-            key={label}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300"
-          >
-            {icon} {label}
-          </span>
-        ))}
-      </div>
-    ),
+    type: 'info',
+    emoji: '🎮',
+    text: <>And there are {g('games')}! When you need to {o('blow off some steam')}.</>,
   },
 ];
 
@@ -62,9 +36,7 @@ export default function OnboardingModal({ onClose }: OnboardingModalProps) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
@@ -75,41 +47,68 @@ export default function OnboardingModal({ onClose }: OnboardingModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-slate-900 border border-violet-500/40 rounded-3xl p-8 shadow-2xl text-center animate-modal-in">
-
+      <div
+        className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl animate-modal-in overflow-hidden"
+        style={{ border: '2px solid #F1E2CF' }}
+      >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 text-xl leading-none transition-colors"
+          className="absolute top-4 right-4 text-[#97887A] hover:text-[#2C2724] text-xl leading-none transition-colors z-10"
           aria-label="Skip"
         >
           ×
         </button>
 
-        <div className="text-5xl mb-4">{current.icon}</div>
-        <h2 className="text-xl font-bold text-slate-100 mb-3">{current.title}</h2>
-        <p className="text-slate-400 text-sm leading-relaxed">{current.body}</p>
+        {current.type === 'mvuu' ? (
+          <div className="flex flex-col items-center px-8 pt-8 pb-6 text-center">
+            <img
+              src="/mvuu.png"
+              alt="Mvuu the jobapotamus"
+              className="w-28 h-28 rounded-full object-cover mb-5"
+              style={{ border: '3px solid #EDE0FF', background: '#F5F0FF' }}
+            />
+            <div
+              className="relative rounded-2xl px-5 py-4 text-sm leading-relaxed text-[#2C2724]"
+              style={{ background: '#F5F0FF', border: '2px solid #EDE0FF' }}
+            >
+              <div
+                className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45"
+                style={{ background: '#F5F0FF', border: '2px solid #EDE0FF', borderBottom: 'none', borderRight: 'none' }}
+              />
+              <p>
+                Hi, {g('superstar')}! I&apos;m Mvuu, your{' '}
+                <span style={{ color: '#7C5CFC', fontWeight: 600 }}>jobapotamus</span>! Me and my
+                friends will cheer you on through the {o('black void')} that is your next job
+                search. {g('Go team!')}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center px-8 pt-10 pb-6 text-center">
+            <div className="text-6xl mb-6">{current.emoji}</div>
+            <p className="text-[#2C2724] text-[15px] leading-relaxed">{current.text}</p>
+          </div>
+        )}
 
-        {current.extra}
-
-        <div className="flex items-center justify-between mt-8">
+        <div className="flex items-center justify-between px-8 pb-7">
           <div className="flex gap-1.5">
             {STEPS.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setStep(i)}
                 className={`w-2 h-2 rounded-full transition-colors ${
-                  i === step ? 'bg-violet-400' : 'bg-slate-700 hover:bg-slate-600'
+                  i === step ? 'bg-[#7C5CFC]' : 'bg-[#EFE0CC] hover:bg-[#D4C5B0]'
                 }`}
                 aria-label={`Step ${i + 1}`}
               />
             ))}
           </div>
-
           <button
             onClick={() => (isLast ? onClose() : setStep((s) => s + 1))}
-            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+            className="px-5 py-2 rounded-xl text-white text-sm font-fredoka font-semibold transition-colors"
+            style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
           >
-            {isLast ? 'Start My Search →' : 'Next →'}
+            {isLast ? "Let's go →" : 'Next →'}
           </button>
         </div>
       </div>

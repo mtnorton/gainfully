@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import AppHeader from '@/components/AppHeader';
 import { Task, CATEGORY_CONFIG, TaskCategory } from '@/lib/types';
 import { Outcome, OutcomeType, OUTCOME_CONFIG } from '@/lib/outcomes';
 import { getLevelProgress } from '@/lib/gameLogic';
 import TaskDetailModal from '@/components/TaskDetailModal';
-
-const STORAGE_KEY = 'gainfully-state';
+import { loadState, saveState } from '@/lib/supabase/storage';
 
 const PIPELINE_CATEGORIES: TaskCategory[] = ['application', 'networking', 'preparation', 'research'];
 
@@ -18,11 +18,16 @@ type OutcomeFilter = OutcomeType | 'all' | 'none';
 const OUTCOME_FILTER_OPTIONS: { value: OutcomeFilter; label: string }[] = [
   { value: 'all', label: 'All results' },
   { value: 'none', label: 'No result logged' },
-  { value: 'interview', label: 'Interview Scheduled' },
-  { value: 'second_interview', label: 'Second Interview' },
-  { value: 'offer', label: 'Offer Received' },
+  { value: 'coffee_chat', label: '☕ Coffee Chat' },
+  { value: 'informational_interview', label: '🗣️ Informational Interview' },
+  { value: 'intro_made', label: '👋 Introduction Made' },
   { value: 'response', label: 'Got a Response' },
   { value: 'referral', label: 'Got a Referral' },
+  { value: 'interview', label: 'Interview Scheduled' },
+  { value: 'technical_screening', label: 'Technical Screening' },
+  { value: 'technical_interview', label: 'Technical Interview' },
+  { value: 'second_interview', label: 'Second Interview' },
+  { value: 'offer', label: 'Offer Received' },
   { value: 'rejection', label: 'Rejection' },
   { value: 'ghosted', label: 'Ghosted' },
   { value: 'position_closed', label: 'Position Closed' },
@@ -59,24 +64,24 @@ export default function PipelinePage() {
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('all');
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setTasks(parsed.tasks ?? []);
-        setOutcomes(parsed.outcomes ?? []);
-        setTotalXP(parsed.totalXP ?? 0);
-        setBadgeCount((parsed.badges ?? []).filter((b: { earned: boolean }) => b.earned).length);
+    async function init() {
+      const data = await loadState();
+      if (data) {
+        setTasks((data.tasks ?? []) as Task[]);
+        setOutcomes((data.outcomes ?? []) as Outcome[]);
+        setTotalXP((data.totalXP ?? 0) as number);
+        setBadgeCount(((data.badges ?? []) as { earned: boolean }[]).filter((b) => b.earned).length);
       }
-    } catch {}
-    setMounted(true);
+      setMounted(true);
+    }
+    init();
   }, []);
 
   if (!mounted) return null;
 
   const levelProgress = getLevelProgress(totalXP);
 
-  const handleLogOutcome = (taskId: string, type: OutcomeType, date: string, notes: string) => {
+  const handleLogOutcome = async (taskId: string, type: OutcomeType, date: string, notes: string) => {
     const config = OUTCOME_CONFIG[type];
     const newOutcome: Outcome = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -88,13 +93,11 @@ export default function PipelinePage() {
       createdAt: new Date().toISOString(),
     };
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const state = JSON.parse(saved);
-        state.outcomes = [...(state.outcomes ?? []), newOutcome];
-        state.totalXP = (state.totalXP ?? 0) + config.xp;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      }
+      const data = await loadState();
+      const state: Record<string, unknown> = data ?? { tasks: [], outcomes: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
+      state.outcomes = [...((state.outcomes as Outcome[]) ?? []), newOutcome];
+      state.totalXP = ((state.totalXP as number) ?? 0) + config.xp;
+      await saveState(state);
     } catch {}
     setOutcomes((prev) => [...prev, newOutcome]);
     setTotalXP((prev) => prev + config.xp);
@@ -170,49 +173,28 @@ export default function PipelinePage() {
     .filter((o) => o.taskId === selectedTaskId)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const selectClass = 'bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-3 py-2 text-slate-200 text-sm outline-none transition-colors';
+  const selectClass = 'rounded-xl px-3 py-2 text-[#6f6155] text-sm outline-none' +
+    ' border-2 border-[#F1E2CF] bg-white focus:border-[#7C5CFC] transition-colors';
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/60">
-        <div className="max-w-6xl mx-auto px-4 flex flex-wrap items-center py-2 gap-y-1 sm:flex-nowrap sm:h-16 sm:py-0">
-          <div className="flex items-center gap-2 order-1">
-            <span className="text-2xl">💼</span>
-            <span className="text-xl font-bold text-slate-100 tracking-tight">Gainfully</span>
-          </div>
-          <nav className="flex gap-0.5 w-full sm:w-auto sm:ml-4 order-3 sm:order-2 pb-1 sm:pb-0">
-            <Link href="/" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Dashboard</Link>
-            <span className="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-slate-100 font-medium">Pipeline</span>
-            <Link href="/progress" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Progress</Link>
-            <Link href="/badges" className="text-sm px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
-              Badges{badgeCount > 0 && (
-                <span className="ml-1.5 text-amber-400 font-bold">{badgeCount}</span>
-              )}
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-3 order-2 sm:order-3">
-            <div className="flex items-center gap-1.5 bg-violet-600/20 border border-violet-500/30 rounded-full px-3 py-1">
-              <span className="text-violet-300 font-semibold text-sm">Lvl {levelProgress.level}</span>
-            </div>
-            <span className="text-yellow-400 font-bold text-sm">{totalXP.toLocaleString()} XP</span>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#FFF6EC]">
+      <AppHeader />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Pipeline</h1>
-            <p className="text-slate-500 text-sm mt-0.5">
+            <h1 className="font-fredoka font-bold text-[22px] text-[#2C2724]">Pipeline</h1>
+            <p className="text-[12px] text-[#97887A] mt-0.5">
               {tasks.length} total tasks · {sorted.length} shown · click any row to view details
             </p>
           </div>
           <button
             onClick={handleExportCSV}
             disabled={sorted.length === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[#6f6155] text-sm font-fredoka font-semibold transition-colors hover:bg-[#F2E8DB] disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#fff', border: '2px solid #EFE0CC' }}
           >
-            <span>↓</span> Export CSV
+            ↓ Export CSV
           </button>
         </div>
 
@@ -222,8 +204,9 @@ export default function PipelinePage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tasks, companies..."
-            className="bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl px-4 py-2 text-slate-200 text-sm outline-none transition-colors flex-1 min-w-48 placeholder-slate-500"
+            placeholder="Search tasks, companies…"
+            className="flex-1 min-w-48 rounded-xl px-4 py-2 text-[#2C2724] text-sm outline-none"
+            style={{ background: '#fff', border: '2px solid #F1E2CF' }}
           />
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)} className={selectClass}>
             <option value="all">All categories</option>
@@ -245,12 +228,12 @@ export default function PipelinePage() {
         </div>
 
         {sorted.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-700/60 p-12 text-center">
+          <div className="rounded-[22px] p-12 text-center" style={{ border: '2px dashed #EFE0CC' }}>
             <div className="text-4xl mb-3">🗂️</div>
-            <p className="text-slate-300 font-medium mb-1">
+            <p className="font-fredoka font-semibold text-[#2C2724] mb-1">
               {tasks.length === 0 ? 'No tasks yet' : 'No tasks match your filters'}
             </p>
-            <p className="text-slate-500 text-sm">
+            <p className="text-[#97887A] text-sm">
               {tasks.length === 0 ? 'Head back to the dashboard to add your first task.' : 'Try adjusting the filters above.'}
             </p>
           </div>
@@ -267,28 +250,25 @@ export default function PipelinePage() {
                   <div
                     key={task.id}
                     onClick={() => setSelectedTaskId(task.id)}
-                    className={`rounded-xl border p-3 cursor-pointer transition-colors ${
-                      mightBeGhosted
-                        ? 'bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10'
-                        : 'bg-slate-800/30 border-slate-700/40 hover:bg-slate-800/60'
-                    }`}
+                    className="bg-white rounded-[16px] p-3 cursor-pointer transition-colors hover:bg-[#FBF3E8]"
+                    style={{ border: mightBeGhosted ? '2px solid #FCD34D' : '2px solid #F1E2CF' }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-100 leading-snug">{task.name}</p>
-                      <span className="text-xs text-yellow-400 font-semibold whitespace-nowrap shrink-0">+{task.xp + outcomesXP} XP</span>
+                      <p className="text-sm font-bold text-[#2C2724] leading-snug">{task.name}</p>
+                      <span className="text-xs text-[#F5A300] font-bold whitespace-nowrap shrink-0">+{task.xp + outcomesXP} XP</span>
                     </div>
                     {(task.company || task.jobTitle) && (
-                      <p className="text-xs text-slate-500 mt-0.5">{[task.company, task.jobTitle].filter(Boolean).join(' · ')}</p>
+                      <p className="text-xs text-[#97887A] mt-0.5">{[task.company, task.jobTitle].filter(Boolean).join(' · ')}</p>
                     )}
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${catConfig.colorClasses}`}>
                         {catConfig.icon} {catConfig.label}
                       </span>
-                      <span className="text-xs text-slate-500">{fmtShortDate(taskDate)}</span>
+                      <span className="text-xs text-[#A99C8D]">{fmtShortDate(taskDate)}</span>
                       {task.completed ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600/40">Done</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#F2E8DB] text-[#7C6F63] border border-[#EFE0CC]">Done</span>
                       ) : (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Active</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#DCFAE7] text-[#16A34A] border border-[#B0EFC8]">Active</span>
                       )}
                     </div>
                     {latest && outcomeConfig ? (
@@ -296,10 +276,10 @@ export default function PipelinePage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full border ${outcomeConfig.colorClasses}`}>
                           {outcomeConfig.icon} {outcomeConfig.label}
                         </span>
-                        <span className="text-xs text-slate-500 ml-1.5">{fmtShortDate(latest.date)}</span>
+                        <span className="text-xs text-[#A99C8D] ml-1.5">{fmtShortDate(latest.date)}</span>
                       </div>
                     ) : mightBeGhosted ? (
-                      <p className="text-xs text-amber-400/80 mt-1.5 flex items-center gap-1">👻 No response in 14d+</p>
+                      <p className="text-xs text-[#D97706] mt-1.5 flex items-center gap-1">👻 No response in 14d+</p>
                     ) : null}
                   </div>
                 );
@@ -307,16 +287,16 @@ export default function PipelinePage() {
             </div>
 
             {/* Desktop: condensed 3-column table */}
-            <div className="hidden md:block rounded-2xl border border-slate-800 overflow-hidden">
+            <div className="hidden md:block rounded-[18px] overflow-hidden" style={{ border: '2px solid #F1E2CF' }}>
               <table className="w-full">
                 <thead>
-                  <tr className="bg-slate-800/60 border-b border-slate-700/60">
-                    <th className="text-left text-xs text-slate-400 font-medium uppercase tracking-wider px-4 py-3">Task</th>
-                    <th className="text-left text-xs text-slate-400 font-medium uppercase tracking-wider px-4 py-3">Latest Result</th>
-                    <th className="text-right text-xs text-slate-400 font-medium uppercase tracking-wider px-4 py-3">XP</th>
+                  <tr style={{ background: '#FBF3E8', borderBottom: '1px solid #F3EADD' }}>
+                    <th className="text-left text-xs text-[#A99C8D] font-extrabold uppercase tracking-wider px-4 py-3">Task</th>
+                    <th className="text-left text-xs text-[#A99C8D] font-extrabold uppercase tracking-wider px-4 py-3">Latest Result</th>
+                    <th className="text-right text-xs text-[#A99C8D] font-extrabold uppercase tracking-wider px-4 py-3">XP</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-[#F3EADD]">
                   {sorted.map(({ task, latest, mightBeGhosted, outcomesXP }) => {
                     const catConfig = CATEGORY_CONFIG[task.category] ?? CATEGORY_CONFIG['research'];
                     const outcomeConfig = latest ? OUTCOME_CONFIG[latest.type] : null;
@@ -328,26 +308,27 @@ export default function PipelinePage() {
                         onClick={() => setSelectedTaskId(task.id)}
                         className={`cursor-pointer transition-colors ${
                           mightBeGhosted
-                            ? 'bg-amber-500/5 hover:bg-amber-500/10'
-                            : 'hover:bg-slate-800/40'
+                            ? 'hover:bg-amber-50'
+                            : 'hover:bg-[#FBF3E8]'
                         }`}
+                        style={mightBeGhosted ? { background: '#FFFBEB' } : {}}
                       >
                         <td className="px-4 py-3">
-                          <p className="text-sm font-medium leading-snug text-slate-100">{task.name}</p>
+                          <p className="font-fredoka font-semibold text-[14px] leading-snug text-[#2C2724]">{task.name}</p>
                           {(task.company || task.jobTitle) && (
-                            <p className="text-xs text-slate-500 mt-0.5">
+                            <p className="text-xs text-[#A99C8D] mt-0.5">
                               {[task.company, task.jobTitle].filter(Boolean).join(' · ')}
                             </p>
                           )}
                           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            <span className={`text-xs px-2 py-0.5 rounded-full border ${catConfig.colorClasses}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${catConfig.colorClasses}`}>
                               {catConfig.icon} {catConfig.label}
                             </span>
-                            <span className="text-xs text-slate-500">{fmtShortDate(taskDate)}</span>
+                            <span className="text-xs text-[#A99C8D]">{fmtShortDate(taskDate)}</span>
                             {task.completed ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600/40">Done</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: '#F2E8DB', color: '#7C6F63' }}>Done</span>
                             ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Active</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: '#DCFAE7', color: '#16A34A' }}>Active</span>
                             )}
                           </div>
                         </td>
@@ -355,26 +336,26 @@ export default function PipelinePage() {
                         <td className="px-4 py-3">
                           {latest && outcomeConfig ? (
                             <div>
-                              <span className={`text-xs px-2 py-0.5 rounded-full border ${outcomeConfig.colorClasses}`}>
+                              <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${outcomeConfig.colorClasses}`}>
                                 {outcomeConfig.icon} {outcomeConfig.label}
                               </span>
-                              <p className="text-xs text-slate-500 mt-0.5">{fmtShortDate(latest.date)}</p>
+                              <p className="text-xs text-[#A99C8D] mt-0.5">{fmtShortDate(latest.date)}</p>
                             </div>
                           ) : mightBeGhosted ? (
-                            <span className="text-xs text-amber-400/80 flex items-center gap-1">
+                            <span className="text-xs text-amber-600 flex items-center gap-1">
                               <span>👻</span> No response in 14d+
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-600">—</span>
+                            <span className="text-xs text-[#C3B8A9]">—</span>
                           )}
                         </td>
 
                         <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <span className="text-xs text-yellow-400 font-semibold">
+                          <span className="text-xs text-[#F5A300] font-bold">
                             +{task.xp + outcomesXP} XP
                           </span>
                           {outcomesXP > 0 && (
-                            <p className="text-xs text-slate-500 mt-0.5">
+                            <p className="text-xs text-[#A99C8D] mt-0.5">
                               {task.xp} + {outcomesXP}
                             </p>
                           )}

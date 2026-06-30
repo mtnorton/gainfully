@@ -17,38 +17,43 @@ export default function TaskCard({ task, outcomes, onComplete, onDelete, onLogOu
 
   return (
     <div
-      className={`rounded-xl border p-4 transition-all duration-200 ${
-        task.completed
-          ? 'bg-slate-800/20 border-slate-700/30 opacity-60'
-          : 'bg-slate-800/60 border-slate-700/50 hover:border-slate-600/60'
+      className={`rounded-[18px] p-4 transition-all duration-200 ${
+        task.completed ? 'opacity-60' : ''
       }`}
+      style={
+        task.completed
+          ? { background: '#FBF3E8', border: '2px solid #EFE0CC' }
+          : { background: '#fff', border: '2px solid #F1E2CF', borderBottom: '4px solid #EFE0CC' }
+      }
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="text-xl mt-0.5 flex-shrink-0">
+          <div
+            className="w-[38px] h-[38px] rounded-[11px] bg-[#F2E8DB] flex items-center justify-center text-[19px] flex-shrink-0"
+          >
             {task.completed ? '✅' : config.icon}
-          </span>
+          </div>
           <div className="flex-1 min-w-0">
             <p
-              className={`font-medium leading-snug ${
-                task.completed ? 'line-through text-slate-400' : 'text-slate-100'
+              className={`font-fredoka font-semibold text-[15px] leading-snug ${
+                task.completed ? 'line-through text-[#A99C8D]' : 'text-[#2C2724]'
               }`}
             >
               {task.name}
             </p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className={`text-xs px-2 py-0.5 rounded-full border ${config.colorClasses}`}>
+              <span className={`text-xs px-2.5 py-0.5 rounded-full border font-bold ${config.colorClasses}`}>
                 {config.label}
               </span>
-              <span className="text-xs text-yellow-400 font-semibold">+{task.xp} XP</span>
+              <span className="text-xs text-[#F5A300] font-bold">+{task.xp} XP</span>
               {task.ats && ATS_CONFIG[task.ats] && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-300">
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#FFE6D3] border border-[#F9C9A3] text-[#EA580C] font-bold">
                   {ATS_CONFIG[task.ats].icon} {ATS_CONFIG[task.ats].label}
                 </span>
               )}
             </div>
             {(task.company || task.jobTitle || task.activityDate) && (
-              <p className="text-xs text-slate-400 mt-1.5">
+              <p className="text-xs text-[#A99C8D] mt-1.5">
                 {[
                   task.company,
                   task.jobTitle,
@@ -67,14 +72,15 @@ export default function TaskCard({ task, outcomes, onComplete, onDelete, onLogOu
           {!task.completed && (
             <button
               onClick={() => onComplete(task.id)}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors whitespace-nowrap"
+              className="px-3 py-1.5 rounded-[11px] text-white text-sm font-fredoka font-semibold transition-colors whitespace-nowrap"
+              style={{ background: '#16A34A', boxShadow: '0 3px 0 #0F7A37' }}
             >
               Complete ✓
             </button>
           )}
           <button
             onClick={() => onDelete(task.id)}
-            className="w-7 h-7 rounded-lg bg-slate-700/50 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors flex items-center justify-center text-lg leading-none"
+            className="w-7 h-7 rounded-lg bg-[#F2E8DB] hover:bg-[#FECACA] text-[#A99C8D] hover:text-[#DC2626] transition-colors flex items-center justify-center text-lg leading-none"
             aria-label="Delete task"
           >
             ×
@@ -83,13 +89,13 @@ export default function TaskCard({ task, outcomes, onComplete, onDelete, onLogOu
       </div>
 
       {task.completed && (
-        <div className="mt-3 pt-3 border-t border-slate-700/30 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 pt-3 border-t border-[#EFE0CC] flex flex-wrap items-center gap-1.5">
           {outcomes.map((o) => (
             <OutcomeChip key={o.id} outcome={o} />
           ))}
           <button
             onClick={() => onLogOutcome(task.id)}
-            className="text-xs px-2.5 py-1 rounded-full border border-dashed border-slate-600/60 text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-full border border-dashed border-[#D4C7C0] text-[#A99C8D] hover:text-[#6f6155] hover:border-[#B8A898] transition-colors"
           >
             + Log outcome
           </button>

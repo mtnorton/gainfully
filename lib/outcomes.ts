@@ -2,10 +2,15 @@ import { Badge } from './types';
 
 export type OutcomeType =
   | 'interview'
+  | 'technical_screening'
+  | 'technical_interview'
   | 'second_interview'
   | 'offer'
   | 'response'
   | 'referral'
+  | 'coffee_chat'
+  | 'informational_interview'
+  | 'intro_made'
   | 'rejection'
   | 'ghosted'
   | 'position_closed'
@@ -53,7 +58,25 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 30,
     xpLabel: '+30 XP',
     sentiment: 'positive',
-    colorClasses: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
+  },
+  technical_screening: {
+    label: 'Technical Screening',
+    shortLabel: 'Tech Screen',
+    icon: '💻',
+    xp: 35,
+    xpLabel: '+35 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
+  },
+  technical_interview: {
+    label: 'Technical Interview',
+    shortLabel: 'Tech Interview',
+    icon: '🧑‍💻',
+    xp: 45,
+    xpLabel: '+45 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
   },
   second_interview: {
     label: 'Second Interview',
@@ -62,7 +85,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 50,
     xpLabel: '+50 XP',
     sentiment: 'positive',
-    colorClasses: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
   },
   offer: {
     label: 'Offer Received',
@@ -71,7 +94,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 100,
     xpLabel: '+100 XP',
     sentiment: 'positive',
-    colorClasses: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+    colorClasses: 'bg-[#FEF3C7] text-[#D97706] border-[#FCD34D]',
   },
   response: {
     label: 'Got a Response',
@@ -80,7 +103,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 10,
     xpLabel: '+10 XP',
     sentiment: 'positive',
-    colorClasses: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    colorClasses: 'bg-[#E4EDFF] text-[#2563EB] border-[#C5D9FF]',
   },
   referral: {
     label: 'Got a Referral',
@@ -89,7 +112,34 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 20,
     xpLabel: '+20 XP',
     sentiment: 'positive',
-    colorClasses: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+    colorClasses: 'bg-[#CFF5EF] text-[#0D9488] border-[#9FE8E0]',
+  },
+  coffee_chat: {
+    label: 'Coffee Chat Scheduled',
+    shortLabel: 'Coffee Chat',
+    icon: '☕',
+    xp: 20,
+    xpLabel: '+20 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#CFF5EF] text-[#0D9488] border-[#9FE8E0]',
+  },
+  informational_interview: {
+    label: 'Informational Interview',
+    shortLabel: 'Info Interview',
+    icon: '🗣️',
+    xp: 25,
+    xpLabel: '+25 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#CFF5EF] text-[#0D9488] border-[#9FE8E0]',
+  },
+  intro_made: {
+    label: 'Introduction Made',
+    shortLabel: 'Intro Made',
+    icon: '👋',
+    xp: 15,
+    xpLabel: '+15 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#E4EDFF] text-[#2563EB] border-[#C5D9FF]',
   },
   rejection: {
     label: 'Rejection',
@@ -98,7 +148,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 5,
     xpLabel: '+5 Resilience XP',
     sentiment: 'resilience',
-    colorClasses: 'bg-slate-600/20 text-slate-400 border-slate-600/30',
+    colorClasses: 'bg-[#F2E8DB] text-[#97887A] border-[#EFE0CC]',
   },
   ghosted: {
     label: 'Ghosted / No Response',
@@ -107,7 +157,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 5,
     xpLabel: '+5 Resilience XP',
     sentiment: 'resilience',
-    colorClasses: 'bg-slate-600/20 text-slate-400 border-slate-600/30',
+    colorClasses: 'bg-[#F2E8DB] text-[#97887A] border-[#EFE0CC]',
   },
   position_closed: {
     label: 'Position Closed',
@@ -116,7 +166,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 0,
     xpLabel: '',
     sentiment: 'neutral',
-    colorClasses: 'bg-slate-600/20 text-slate-400 border-slate-600/30',
+    colorClasses: 'bg-[#F2E8DB] text-[#97887A] border-[#EFE0CC]',
   },
   other: {
     label: 'Other Update',
@@ -125,7 +175,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 5,
     xpLabel: '+5 XP',
     sentiment: 'neutral',
-    colorClasses: 'bg-slate-600/20 text-slate-400 border-slate-600/30',
+    colorClasses: 'bg-[#F2E8DB] text-[#97887A] border-[#EFE0CC]',
   },
   standard_nonsense: {
     label: 'Standard Nonsense',
@@ -134,7 +184,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 25,
     xpLabel: '+25 Nonsense XP',
     sentiment: 'resilience',
-    colorClasses: 'bg-orange-500/15 text-orange-300 border-orange-500/25',
+    colorClasses: 'bg-[#FFE6D3] text-[#EA580C] border-[#F9C9A3]',
   },
   ridiculous_nonsense: {
     label: 'Ridiculous Nonsense',
@@ -143,7 +193,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 100,
     xpLabel: '+100 Nonsense XP',
     sentiment: 'resilience',
-    colorClasses: 'bg-orange-600/20 text-orange-200 border-orange-600/30',
+    colorClasses: 'bg-[#FFD0C5] text-[#C2410C] border-[#FFA591]',
   },
   outrageous_nonsense: {
     label: 'Outrageous Nonsense',
@@ -152,7 +202,7 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xp: 1000,
     xpLabel: '+1000 Nonsense XP',
     sentiment: 'resilience',
-    colorClasses: 'bg-red-600/20 text-red-200 border-red-600/30',
+    colorClasses: 'bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]',
   },
 };
 
@@ -162,6 +212,18 @@ const OUTCOME_MESSAGES: Record<OutcomeType, string[]> = {
     "This is what you've been working toward. You earned this shot.",
     "They saw something in you. Now let them see even more.",
     "An interview means you cleared a real bar. That's not luck — that's you.",
+  ],
+  technical_screening: [
+    "A tech screen means they liked what they saw. Now show them what you can do.",
+    "You cleared the first technical bar. That's real signal — keep going.",
+    "Technical screenings separate the prepared from the hopeful. You're prepared.",
+    "They want to see your skills. You've been building toward exactly this.",
+  ],
+  technical_interview: [
+    "A full technical interview — they're seriously evaluating you. Trust your prep.",
+    "You earned a technical interview. That's a real vote of confidence in your abilities.",
+    "Deep into the process now. Every technical round you reach is proof you belong.",
+    "This is where preparation meets opportunity. You've done the work — show it.",
   ],
   second_interview: [
     "Second interview — they're seriously interested. Keep that momentum going!",
@@ -183,6 +245,24 @@ const OUTCOME_MESSAGES: Record<OutcomeType, string[]> = {
     "Someone believed in you enough to put their name behind yours. That's huge.",
     "A referral is one of the most valuable things in a job search. You've earned someone's trust.",
     "Your network is working for you. Honor that relationship.",
+  ],
+  coffee_chat: [
+    "A coffee chat is how careers actually get built. Go make it count.",
+    "You put yourself out there and it worked. Now show up fully.",
+    "Face time with someone in your field. This is how doors open.",
+    "More valuable than it sounds. One real conversation can change everything.",
+  ],
+  informational_interview: [
+    "They're investing their time in you. Show up prepared and curious.",
+    "You asked, they said yes. That takes courage and now it's paying off.",
+    "This is how careers get built — one real conversation at a time.",
+    "A door is open. Walk through it with genuine curiosity.",
+  ],
+  intro_made: [
+    "An introduction is a multiplier. Your network just got bigger.",
+    "Someone connected you to someone. That's trust being passed along — honor it.",
+    "A warm intro is worth ten cold messages. Follow up and make it real.",
+    "New contact, new possibility. The next step is yours to take.",
   ],
   rejection: [
     "Being rejected stings — and it's okay to feel that. Then remember: every no redirects you toward your yes.",

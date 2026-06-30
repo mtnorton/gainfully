@@ -7,9 +7,9 @@ interface StatsRowProps {
 
 export default function StatsRow({ level, tasksCompleted, badgesEarned, resultsLogged }: StatsRowProps) {
   const stats = [
-    { icon: '🎯', label: 'Level', value: level },
-    { icon: '✅', label: 'Done', value: tasksCompleted },
-    { icon: '🏅', label: 'Badges', value: badgesEarned },
+    { icon: '🎯', label: 'Level',   value: level },
+    { icon: '✅', label: 'Done',    value: tasksCompleted },
+    { icon: '🏅', label: 'Badges',  value: badgesEarned },
     { icon: '📋', label: 'Results', value: resultsLogged },
   ];
 
@@ -18,11 +18,12 @@ export default function StatsRow({ level, tasksCompleted, badgesEarned, resultsL
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3 text-center"
+          className="bg-white rounded-[16px] p-[13px] text-center"
+          style={{ border: '2px solid #F1E2CF', borderBottom: '4px solid #EFE0CC' }}
         >
-          <div className="text-xl mb-0.5">{stat.icon}</div>
-          <div className="text-slate-100 font-bold text-base leading-tight">{stat.value}</div>
-          <div className="text-slate-500 text-xs mt-0.5">{stat.label}</div>
+          <div className="text-[21px]">{stat.icon}</div>
+          <div className="font-fredoka font-bold text-[21px] text-[#2C2724]">{stat.value}</div>
+          <div className="text-[11px] text-[#A99C8D] font-bold uppercase tracking-wide">{stat.label}</div>
         </div>
       ))}
     </div>
