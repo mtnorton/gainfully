@@ -18,6 +18,7 @@ import ManageActivitiesModal from '@/components/ManageActivitiesModal';
 import OnboardingModal from '@/components/OnboardingModal';
 import ConsentModal from '@/components/ConsentModal';
 import { loadState, saveState, loadConsentStatus } from '@/lib/supabase/storage';
+import { createClient } from '@/lib/supabase/client';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -93,6 +94,17 @@ export default function Home() {
       setMounted(true);
     }
     init();
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: null | { user: unknown }) => {
+      if (!session) {
+        setState(buildDefaultState());
+        setIsSignedIn(false);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

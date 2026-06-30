@@ -205,7 +205,7 @@ export default function UserModal({ onClose }: UserModalProps) {
           </div>
         ) : (
           <>
-            <p className="text-[#97887A] text-[11px] text-center mb-3">Sign in to sync your progress across devices</p>
+            <p className="text-[#97887A] text-[11px] text-center mb-3">Play away — but you&apos;ll need to sign in to save your progress.</p>
             <button
               onClick={handleSignIn}
               disabled={signingIn}
