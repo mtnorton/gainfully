@@ -17,22 +17,34 @@ export default function AppHeader() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    async function init() {
+    const supabase = createClient();
+
+    async function loadData() {
       const data = await loadState();
       if (data) {
         setBadgeCount(((data.badges ?? []) as { earned: boolean }[]).filter((b) => b.earned).length);
         setLevel(getLevel((data.totalXP as number) ?? 0));
+      } else {
+        setBadgeCount(0);
+        setLevel(1);
       }
     }
-    init();
-  }, []);
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getSession().then((res: { data: { session: Session | null } }) => setUser(res.data.session?.user ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e: AuthChangeEvent, session: Session | null) => {
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then((res: { data: { session: Session | null } }) => {
+      setUser(res.data.session?.user ?? null);
+      loadData();
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      setUser(session?.user ?? null);
+      if (!session) {
+        setBadgeCount(0);
+        setLevel(1);
+      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        loadData();
+      }
+    });
+
     return () => subscription.unsubscribe();
   }, []);
 

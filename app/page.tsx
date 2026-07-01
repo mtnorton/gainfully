@@ -17,8 +17,9 @@ import StreakCard from '@/components/StreakCard';
 import ManageActivitiesModal from '@/components/ManageActivitiesModal';
 import OnboardingModal from '@/components/OnboardingModal';
 import ConsentModal from '@/components/ConsentModal';
-import { loadState, saveState, loadConsentStatus, awardFreezeToken, applyStreakFreeze } from '@/lib/supabase/storage';
+import { loadState, saveState, loadConsentStatus, ensureSession, awardFreezeToken, applyStreakFreeze } from '@/lib/supabase/storage';
 import { createClient } from '@/lib/supabase/client';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -66,7 +67,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
-  const [isSignedIn, setIsSignedIn] = useState(true);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [freezeTokens, setFreezeTokens] = useState(0);
   const [frozenDates, setFrozenDates] = useState<string[]>([]);
   const [showFreezeBanner, setShowFreezeBanner] = useState(false);
@@ -76,52 +77,69 @@ export default function Home() {
     setShowOnboarding(false);
   }, []);
 
+  function applyLoadedData(data: Record<string, unknown>) {
+    const parsed = data as unknown as AppState & { freezeTokens?: number; frozenDates?: string[] };
+    const mergedBadges = getInitialBadges().map((b) => {
+      const savedBadge = (parsed.badges ?? []).find((sb) => sb.id === b.id);
+      return savedBadge ?? b;
+    });
+    const tasks = parsed.tasks ?? [];
+    const outcomes = parsed.outcomes ?? [];
+    const tokens = parsed.freezeTokens ?? 0;
+    const frozen = parsed.frozenDates ?? [];
+    setState({ tasks, outcomes, totalXP: parsed.totalXP ?? 0, badges: mergedBadges, customActivities: parsed.customActivities ?? [], xpOverrides: parsed.xpOverrides ?? {} });
+    setFreezeTokens(tokens);
+    setFrozenDates(frozen);
+    if (tokens > 0 && hadYesterdayGap(tasks, outcomes, frozen)) setShowFreezeBanner(true);
+  }
+
   useEffect(() => {
     async function init() {
+      await ensureSession();
       const [data, consent] = await Promise.all([loadState(), loadConsentStatus()]);
-      setIsSignedIn(consent?.signedIn ?? false);
-      if (consent?.signedIn && !consent.consented) setShowConsent(true);
-      if (data) {
-        const parsed = data as unknown as AppState & { freezeTokens?: number; frozenDates?: string[] };
-        const mergedBadges = getInitialBadges().map((b) => {
-          const savedBadge = (parsed.badges ?? []).find((sb) => sb.id === b.id);
-          return savedBadge ?? b;
-        });
-        const tasks = parsed.tasks ?? [];
-        const outcomes = parsed.outcomes ?? [];
-        const tokens = parsed.freezeTokens ?? 0;
-        const frozen = parsed.frozenDates ?? [];
-        setState({
-          tasks,
-          outcomes,
-          totalXP: parsed.totalXP ?? 0,
-          badges: mergedBadges,
-          customActivities: parsed.customActivities ?? [],
-          xpOverrides: parsed.xpOverrides ?? {},
-        });
-        setFreezeTokens(tokens);
-        setFrozenDates(frozen);
-        if (tokens > 0 && hadYesterdayGap(tasks, outcomes, frozen)) {
-          setShowFreezeBanner(true);
-        }
-      }
-      if (!localStorage.getItem('gainfully-onboarded')) {
-        setShowOnboarding(true);
-      }
+      setIsAnonymous(consent?.isAnonymous ?? false);
+      if (consent?.signedIn && !consent.isAnonymous && !consent.consented) setShowConsent(true);
+      if (data) applyLoadedData(data);
+      if (!localStorage.getItem('gainfully-onboarded')) setShowOnboarding(true);
       setMounted(true);
     }
     init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     const supabase = createClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: null | { user: unknown }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (!session) {
         setState(buildDefaultState());
-        setIsSignedIn(false);
+        setFreezeTokens(0);
+        setFrozenDates([]);
+        setShowFreezeBanner(false);
+        setIsAnonymous(false);
+      } else if (event === 'SIGNED_IN') {
+        const anon = (session.user as { is_anonymous?: boolean }).is_anonymous ?? false;
+        setIsAnonymous(anon);
+
+        loadState().then((data) => { if (data) applyLoadedData(data); });
+        if (!anon) {
+          loadConsentStatus().then((consent) => {
+            if (consent && !consent.consented) setShowConsent(true);
+          });
+        }
+      } else if (event === 'USER_UPDATED') {
+        const anon = (session.user as { is_anonymous?: boolean }).is_anonymous ?? false;
+        setIsAnonymous(anon);
+
+        if (!anon) {
+          loadConsentStatus().then((consent) => {
+            if (consent && !consent.consented) setShowConsent(true);
+          });
+        }
       }
     });
     return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -186,6 +204,7 @@ export default function Home() {
             newBadges: allNewBadges,
             leveledUp: newLevel > oldLevel,
             newLevel,
+            streak: newStreak,
             message: getRandomEncouragement(),
             celebration: getRandomCelebration(),
           });
@@ -214,7 +233,7 @@ export default function Home() {
       const updatedTasks = prev.tasks.map((t) =>
         t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), xp: taskXP } : t
       );
-      const newStreak = calculateStreak(updatedTasks, prev.outcomes);
+      const newStreak = calculateStreak(updatedTasks, prev.outcomes, frozenDates);
       const allCompleted = updatedTasks.filter((t) => t.completed);
       const streakBadges = checkForStreakBadges(newStreak, allCompleted, prev.badges);
       const allNewBadges = [...newBadges, ...streakBadges];
@@ -237,6 +256,7 @@ export default function Home() {
           newBadges: allNewBadges,
           leveledUp: newLevel > oldLevel,
           newLevel,
+          streak: newStreak,
           message: getRandomEncouragement(),
           celebration: getRandomCelebration(),
         });
@@ -309,6 +329,11 @@ export default function Home() {
           newTotalXP
         );
 
+        const today = new Date().toISOString().split('T')[0];
+        const isFirstToday =
+          !prev.tasks.some((t) => t.completed && t.completedAt?.startsWith(today)) &&
+          !prev.outcomes.some((o) => o.createdAt?.startsWith(today));
+
         const allOutcomes = [...prev.outcomes, newOutcome];
         const newStreak = calculateStreak(prev.tasks, allOutcomes, frozenDates);
         const streakBadges = checkForStreakBadges(newStreak, prev.tasks.filter((t) => t.completed), prev.badges);
@@ -335,6 +360,7 @@ export default function Home() {
             newBadges: allNewBadges,
             leveledUp: newLevel > oldLevel,
             newLevel,
+            streak: isFirstToday ? newStreak : 0,
           });
         }, 0);
 
@@ -408,19 +434,19 @@ export default function Home() {
           </div>
         </div>
 
-        {!isSignedIn && (
+        {isAnonymous && (
           <div
             className="rounded-[16px] px-4 py-3 text-center text-[13px] text-[#6f6155]"
             style={{ background: '#FFF0E0', border: '2px solid #EFE0CC' }}
           >
-            Play away — but you&apos;ll need to{' '}
+            Connect your Google account to{' '}
             <button
               onClick={() => document.querySelector<HTMLButtonElement>('[aria-label="User profile"]')?.click()}
               className="font-semibold text-[#7C5CFC] underline underline-offset-2 hover:opacity-80 transition-opacity"
             >
-              sign in
+              access from any device
             </button>
-            {' '}to save your progress.
+            .
           </div>
         )}
 

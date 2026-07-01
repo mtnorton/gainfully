@@ -3,11 +3,26 @@ import { Task, TaskCategory, CustomActivity, Badge } from '@/lib/types';
 import { Outcome, OutcomeType } from '@/lib/outcomes';
 import { getInitialBadges } from '@/lib/gameLogic';
 
+// ── session ───────────────────────────────────────────────────────────────────
+
+export async function ensureSession(): Promise<void> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) console.error('[gainfully] ensureSession:', error);
+  }
+}
+
 // ── loadState ─────────────────────────────────────────────────────────────────
 
 export async function loadState(): Promise<Record<string, unknown> | null> {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  let { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    const { data } = await supabase.auth.signInAnonymously();
+    session = data.session;
+  }
   if (!session) return null;
   const userId = session.user.id;
 
@@ -84,13 +99,14 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
 
 export async function loadConsentStatus(): Promise<{
   signedIn: boolean;
+  isAnonymous: boolean;
   consented: boolean;
   emailReminders: boolean;
   emailHippoJokes: boolean;
 } | null> {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return { signedIn: false, consented: false, emailReminders: false, emailHippoJokes: false };
+  if (!session) return { signedIn: false, isAnonymous: false, consented: false, emailReminders: false, emailHippoJokes: false };
 
   const { data } = await supabase
     .from('user_settings')
@@ -100,6 +116,7 @@ export async function loadConsentStatus(): Promise<{
 
   return {
     signedIn: true,
+    isAnonymous: session.user.is_anonymous ?? false,
     consented: !!data?.consented_at,
     emailReminders: data?.email_reminders ?? false,
     emailHippoJokes: data?.email_hippo_jokes ?? false,

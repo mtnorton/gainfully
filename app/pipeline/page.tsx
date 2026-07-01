@@ -168,6 +168,24 @@ export default function PipelinePage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      const data = await loadState();
+      const state: Record<string, unknown> = data ?? { tasks: [], outcomes: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
+      const deletedTask = (state.tasks as Task[])?.find((t) => t.id === taskId);
+      const deletedOutcomesXP = (state.outcomes as Outcome[])
+        ?.filter((o) => o.taskId === taskId)
+        .reduce((sum, o) => sum + (o.xpAwarded ?? 0), 0) ?? 0;
+      state.tasks = ((state.tasks as Task[]) ?? []).filter((t) => t.id !== taskId);
+      state.outcomes = ((state.outcomes as Outcome[]) ?? []).filter((o) => o.taskId !== taskId);
+      state.totalXP = ((state.totalXP as number) ?? 0) - (deletedTask?.xp ?? 0) - deletedOutcomesXP;
+      await saveState(state);
+    } catch {}
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setOutcomes((prev) => prev.filter((o) => o.taskId !== taskId));
+    setSelectedTaskId(null);
+  };
+
   const selectedTask = selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null;
   const selectedTaskOutcomes = outcomes
     .filter((o) => o.taskId === selectedTaskId)
@@ -382,6 +400,7 @@ export default function PipelinePage() {
         outcomes={selectedTaskOutcomes}
         onClose={() => setSelectedTaskId(null)}
         onLogOutcome={handleLogOutcome}
+        onDelete={handleDeleteTask}
       />
     </div>
   );

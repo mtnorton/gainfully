@@ -60,15 +60,32 @@ export default function UserModal({ onClose }: UserModalProps) {
     init();
   }, []);
 
+  const isAnonymous = (user as (User & { is_anonymous?: boolean }) | null)?.is_anonymous ?? false;
+
+  async function handleLinkGoogle() {
+    setSigningIn(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) {
+      console.error('[gainfully] signInWithOAuth:', error);
+      setSigningIn(false);
+    }
+  }
+
   async function handleSignIn() {
     setSigningIn(true);
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
+    if (error) {
+      console.error('[gainfully] signInWithOAuth:', error);
+      setSigningIn(false);
+    }
   }
 
   async function handleSignOut() {
@@ -143,8 +160,8 @@ export default function UserModal({ onClose }: UserModalProps) {
 
         <div className="mb-4" style={{ borderTop: '2px solid #F1E2CF' }} />
 
-        {/* Email prefs — only shown when signed in */}
-        {user && (
+        {/* Email prefs — only shown for real (non-anonymous) signed-in users */}
+        {user && !isAnonymous && (
           <>
             <div className="mb-3" style={{ borderTop: '2px solid #F1E2CF' }} />
             <p className="font-fredoka font-semibold text-[11px] text-[#97887A] uppercase tracking-wide mb-2">
@@ -184,7 +201,7 @@ export default function UserModal({ onClose }: UserModalProps) {
         </p>
 
         {/* Auth section */}
-        {user ? (
+        {user && !isAnonymous ? (
           <div className="flex items-center gap-3">
             {avatarUrl
               ? <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full flex-shrink-0" />
@@ -203,6 +220,24 @@ export default function UserModal({ onClose }: UserModalProps) {
               Sign out
             </button>
           </div>
+        ) : isAnonymous ? (
+          <>
+            <p className="text-[#97887A] text-[11px] text-center mb-3">Connect your Google account to access your progress from any device.</p>
+            <button
+              onClick={handleLinkGoogle}
+              disabled={signingIn}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm text-[#2C2724] hover:bg-[#FBF3E8] transition-colors disabled:opacity-60"
+              style={{ border: '2px solid #F1E2CF' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.566 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
+              </svg>
+              {signingIn ? 'Redirecting…' : 'Connect Google account'}
+            </button>
+          </>
         ) : (
           <>
             <p className="text-[#97887A] text-[11px] text-center mb-3">Play away — but you&apos;ll need to sign in to save your progress.</p>

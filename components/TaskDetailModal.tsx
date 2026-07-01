@@ -9,6 +9,7 @@ interface TaskDetailModalProps {
   outcomes: Outcome[]; // sorted oldest → newest (timeline order)
   onClose: () => void;
   onLogOutcome: (taskId: string, type: OutcomeType, date: string, notes: string) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 type OutcomeGroup = { label: string; types: OutcomeType[] };
@@ -42,10 +43,11 @@ const NOTES_PLACEHOLDERS: Partial<Record<OutcomeType, string>> = {
   offer: 'Any notes on the offer?',
 };
 
-export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome }: TaskDetailModalProps) {
+export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome, onDelete }: TaskDetailModalProps) {
   const [selectedType, setSelectedType] = useState<OutcomeType | null>(null);
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!task) return null;
 
@@ -97,15 +99,47 @@ export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome 
                 </span>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-xl leading-none text-[#97887A] hover:text-[#2C2724] transition-colors flex-shrink-0"
-              style={{ background: '#F2E8DB' }}
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {onDelete && !confirmDelete && (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="text-xs text-[#97887A] hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-xl leading-none text-[#97887A] hover:text-[#2C2724] transition-colors"
+                style={{ background: '#F2E8DB' }}
+              >
+                ×
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Delete confirmation */}
+        {confirmDelete && (
+          <div className="px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0" style={{ background: '#FEF2F2', borderBottom: '2px solid #FECACA' }}>
+            <p className="text-sm text-red-700 font-semibold">Delete this task and all its outcomes?</p>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-xs text-[#97887A] font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => onDelete?.(task.id)}
+                className="text-xs text-white font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                style={{ background: '#DC2626' }}
+              >
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Results timeline */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">

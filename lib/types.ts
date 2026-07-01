@@ -125,6 +125,7 @@ export interface CompletionEvent {
   newBadges: Badge[];
   leveledUp: boolean;
   newLevel: number;
+  streak: number;
   message: string;
   celebration: string;
 }

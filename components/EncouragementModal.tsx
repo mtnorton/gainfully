@@ -66,6 +66,13 @@ export default function EncouragementModal({ completionEvent, onClose }: Encoura
           <span className="font-fredoka font-bold text-[#D97706] text-xl">XP</span>
         </div>
 
+        {completionEvent.streak >= 2 && !completionEvent.newBadges.some((b) => b.id.startsWith('streak_')) && (
+          <div className="rounded-2xl px-4 py-2.5 mb-4 flex items-center justify-center gap-2" style={{ background: '#FFF0E0', border: '2px solid #FFD9B8' }}>
+            <span className="text-lg">🔥</span>
+            <span className="font-fredoka font-bold text-[#C2410C] text-[15px]">{completionEvent.streak}-day streak</span>
+          </div>
+        )}
+
         {completionEvent.leveledUp && (
           <div className="rounded-2xl p-4 mb-4" style={{ background: '#EEE7FF', border: '2px solid #D4C7FF' }}>
             <div className="text-2xl mb-1">🎉</div>

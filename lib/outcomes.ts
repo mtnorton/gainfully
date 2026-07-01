@@ -48,6 +48,7 @@ export interface OutcomeResult {
   newBadges: Badge[];
   leveledUp: boolean;
   newLevel: number;
+  streak: number;
 }
 
 export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {

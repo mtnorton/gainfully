@@ -52,6 +52,13 @@ export default function OutcomeResultModal({ result, onClose }: OutcomeResultMod
           </div>
         )}
 
+        {result.streak >= 2 && !result.newBadges.some((b) => b.id.startsWith('streak_')) && (
+          <div className="rounded-2xl px-4 py-2.5 mb-4 flex items-center justify-center gap-2" style={{ background: '#FFF0E0', border: '2px solid #FFD9B8' }}>
+            <span className="text-lg">🔥</span>
+            <span className="font-fredoka font-bold text-[#C2410C] text-[15px]">{result.streak}-day streak</span>
+          </div>
+        )}
+
         {result.leveledUp && (
           <div className="rounded-2xl p-4 mb-4" style={{ background: '#EEE7FF', border: '2px solid #D4C7FF' }}>
             <div className="text-2xl mb-1">🎉</div>
