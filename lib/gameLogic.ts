@@ -155,11 +155,11 @@ export function getInitialBadges(): Badge[] {
   return BADGE_DEFINITIONS.map((b) => ({ ...b, earned: false }));
 }
 
-function localDateStr(date: Date): string {
+export function localDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function calculateStreak(tasks: Task[], outcomes: Outcome[] = []): number {
+export function calculateStreak(tasks: Task[], outcomes: Outcome[] = [], frozenDates: string[] = []): number {
   const completedDates = new Set<string>();
   for (const task of tasks) {
     if (task.completed && task.completedAt) {
@@ -173,21 +173,38 @@ export function calculateStreak(tasks: Task[], outcomes: Outcome[] = []): number
   }
   if (completedDates.size === 0) return 0;
 
+  const frozenSet = new Set(frozenDates);
+  const hasActivity = (d: string) => completedDates.has(d) || frozenSet.has(d);
+
   const now = new Date();
   const today = localDateStr(now);
   const yesterday = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
   // Streak is alive if something was done today OR yesterday (grace period for end-of-day)
-  const startStr = completedDates.has(today) ? today : completedDates.has(yesterday) ? yesterday : null;
+  const startStr = hasActivity(today) ? today : hasActivity(yesterday) ? yesterday : null;
   if (!startStr) return 0;
 
   let streak = 0;
   const cursor = new Date(startStr + 'T12:00:00');
-  while (completedDates.has(localDateStr(cursor))) {
+  while (hasActivity(localDateStr(cursor))) {
     streak++;
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
+}
+
+export function hadYesterdayGap(tasks: Task[], outcomes: Outcome[], frozenDates: string[]): boolean {
+  const completedDates = new Set<string>();
+  for (const task of tasks) {
+    if (task.completed && task.completedAt) completedDates.add(localDateStr(new Date(task.completedAt)));
+  }
+  for (const outcome of outcomes) {
+    if (outcome.createdAt) completedDates.add(localDateStr(new Date(outcome.createdAt)));
+  }
+  const now = new Date();
+  const yesterday = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const dayBefore = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2));
+  return !completedDates.has(yesterday) && !frozenDates.includes(yesterday) && completedDates.has(dayBefore);
 }
 
 export function checkForStreakBadges(

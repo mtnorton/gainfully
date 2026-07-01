@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { getLevelProgress } from '@/lib/gameLogic';
+import { getLevelProgress, getLevel } from '@/lib/gameLogic';
+import LevelUpModal from '@/components/LevelUpModal';
 import { TaskCategory } from '@/lib/types';
 import { getGameDay } from '@/lib/gameDay';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
 
 const SHOT_PICK_KEY = 'gainfully-shot-pick';
 
@@ -97,6 +98,7 @@ export default function ShotInTheDarkPage() {
   const [badgeCount, setBadgeCount] = useState(0);
   const [pick, setPick] = useState<ShotPick | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
   const [preQuip] = useState(() => randomFrom(PRE_PICK_QUIPS));
   const [claimQuip] = useState(() => randomFrom(CLAIM_QUIPS));
 
@@ -134,6 +136,8 @@ export default function ShotInTheDarkPage() {
       const data = await loadState();
       const state: Record<string, unknown> = data ?? { tasks: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
       const now = new Date().toISOString();
+      const oldTotalXP = (state.totalXP as number) ?? 0;
+      const newTotalXP = oldTotalXP + pick.xpValue;
       const newTask = {
         id: `shot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: 'Shot in the Dark',
@@ -144,14 +148,19 @@ export default function ShotInTheDarkPage() {
         createdAt: now,
       };
       state.tasks = [newTask, ...((state.tasks as unknown[]) ?? [])];
-      state.totalXP = ((state.totalXP as number) ?? 0) + pick.xpValue;
+      state.totalXP = newTotalXP;
       await saveState(state);
+      if (getLevel(newTotalXP) > getLevel(oldTotalXP)) {
+        setLevelUpTo(getLevel(newTotalXP));
+        awardFreezeToken().catch(() => {});
+      }
+      setTotalXP(newTotalXP);
+      setLevelProgress(getLevelProgress(newTotalXP));
     } catch { /* ignore */ }
 
     const updated: ShotPick = { ...pick, lastClaimedDate: getGameDay() };
     localStorage.setItem(SHOT_PICK_KEY, JSON.stringify(updated));
     setPick(updated);
-    setTotalXP((prev) => prev + pick.xpValue);
   }
 
   if (!mounted) return null;
@@ -159,6 +168,7 @@ export default function ShotInTheDarkPage() {
   const claimedToday = pick?.lastClaimedDate === getGameDay();
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -221,5 +231,7 @@ export default function ShotInTheDarkPage() {
         )}
       </main>
     </div>
+    {levelUpTo !== null && <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />}
+    </>
   );
 }

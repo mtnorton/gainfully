@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { getLevelProgress, checkForNewBadges, checkForStreakBadges, calculateStreak, getInitialBadges } from '@/lib/gameLogic';
+import { getLevelProgress, getLevel, checkForNewBadges, checkForStreakBadges, calculateStreak, getInitialBadges } from '@/lib/gameLogic';
 import { BUILT_IN_ACTIVITIES } from '@/lib/builtInActivities';
 import { Task, Badge, TaskCategory, CustomActivity } from '@/lib/types';
 import { getGameDay } from '@/lib/gameDay';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
+import LevelUpModal from '@/components/LevelUpModal';
 
 export const SLOTS_PICK_KEY = 'gainfully-slots-pick';
 
@@ -52,6 +53,7 @@ export default function SlotsPage() {
   const [spinning, setSpinning] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -131,11 +133,12 @@ export default function SlotsPage() {
   async function handleClaim() {
     if (!dailyPick || dailyPick.claimed) return;
     const xpEarned = dailyPick.baseXP + dailyPick.bonusXP;
-    const newTotalXP = totalXP + xpEarned;
 
     try {
       const data = await loadState();
       const state: Record<string, unknown> = data ?? { tasks: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
+      const oldTotalXP = (state.totalXP as number) ?? 0;
+      const newTotalXP = oldTotalXP + xpEarned;
       const now = new Date().toISOString();
       const newTask: Task = {
         id: `slots-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -172,13 +175,17 @@ export default function SlotsPage() {
       state.badges = updatedBadges;
       await saveState(state);
       setBadgeCount(updatedBadges.filter((b: Badge) => b.earned).length);
+      if (getLevel(newTotalXP) > getLevel(oldTotalXP)) {
+        setLevelUpTo(getLevel(newTotalXP));
+        awardFreezeToken().catch(() => {});
+      }
+      setTotalXP(newTotalXP);
+      setLevelProgress(getLevelProgress(newTotalXP));
     } catch { /* ignore */ }
 
     const updated: DailyPick = { ...dailyPick, claimed: true };
     localStorage.setItem(SLOTS_PICK_KEY, JSON.stringify(updated));
     setDailyPick(updated);
-    setTotalXP(newTotalXP);
-    setLevelProgress(getLevelProgress(newTotalXP));
   }
 
   if (!mounted) return null;
@@ -188,6 +195,7 @@ export default function SlotsPage() {
     : null;
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -269,5 +277,7 @@ export default function SlotsPage() {
         )}
       </main>
     </div>
+    {levelUpTo !== null && <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />}
+    </>
   );
 }

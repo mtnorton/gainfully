@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
+import { getLevel } from '@/lib/gameLogic';
 import { TaskCategory } from '@/lib/types';
 import { getGameDay } from '@/lib/gameDay';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
+import LevelUpModal from '@/components/LevelUpModal';
 
 const FACT_KEY = 'gainfully-fact-day';
 
@@ -31,6 +33,7 @@ function getDailyFactIndex(date: string): number {
 export default function FactOfTheDayPage() {
   const [mounted, setMounted] = useState(false);
   const [claimed, setClaimed] = useState(false);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
 
   const today = getGameDay();
   const fact = FACTS[getDailyFactIndex(today)];
@@ -65,8 +68,14 @@ export default function FactOfTheDayPage() {
         },
         ...((state.tasks as unknown[]) ?? []),
       ];
-      state.totalXP = ((state.totalXP as number) ?? 0) + XP;
+      const oldXP = (state.totalXP as number) ?? 0;
+      const newXP = oldXP + XP;
+      state.totalXP = newXP;
       await saveState(state);
+      if (getLevel(newXP) > getLevel(oldXP)) {
+        setLevelUpTo(getLevel(newXP));
+        awardFreezeToken().catch(() => {});
+      }
     } catch { /* ignore */ }
 
     localStorage.setItem(FACT_KEY, JSON.stringify({ date: today, claimed: true }));
@@ -76,6 +85,7 @@ export default function FactOfTheDayPage() {
   if (!mounted) return null;
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -135,5 +145,7 @@ export default function FactOfTheDayPage() {
         </div>
       </main>
     </div>
+    {levelUpTo !== null && <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />}
+    </>
   );
 }

@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { getLevelProgress, checkForNewBadgesOnOutcome, getInitialBadges } from '@/lib/gameLogic';
+import { getLevelProgress, getLevel, checkForNewBadgesOnOutcome, getInitialBadges } from '@/lib/gameLogic';
 import { Badge, Task, CATEGORY_CONFIG } from '@/lib/types';
 import { Outcome, OUTCOME_CONFIG } from '@/lib/outcomes';
 import { getGameDay } from '@/lib/gameDay';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
+import LevelUpModal from '@/components/LevelUpModal';
 
 const GHOSTED_KEY = 'gainfully-ghosted';
 
@@ -93,6 +94,7 @@ export default function WasIGhostedPage() {
   const [eligible, setEligible] = useState<EligibleItem[]>([]);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [daily, setDaily] = useState<DailyGhostedPick | null>(null);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
   const [currentItem, setCurrentItem] = useState<EligibleItem | null>(null);
 
   useEffect(() => {
@@ -159,7 +161,8 @@ export default function WasIGhostedPage() {
           createdAt: new Date().toISOString(),
         };
 
-        newTotalXP = ((state.totalXP as number) ?? 0) + 5;
+        const oldTotalXP = (state.totalXP as number) ?? 0;
+        newTotalXP = oldTotalXP + 5;
         const currentBadges: Badge[] = getInitialBadges().map((b) => {
           const found = ((state.badges as Badge[]) ?? []).find((sb: Badge) => sb.id === b.id);
           return found ?? b;
@@ -178,6 +181,10 @@ export default function WasIGhostedPage() {
         await saveState(state);
         setBadgeCount(updatedBadges.filter((b: Badge) => b.earned).length);
         setAllOutcomes(state.outcomes as Outcome[]);
+        if (getLevel(newTotalXP) > getLevel(oldTotalXP)) {
+          setLevelUpTo(getLevel(newTotalXP));
+          awardFreezeToken().catch(() => {});
+        }
       } catch { /* ignore */ }
     }
 
@@ -227,6 +234,7 @@ export default function WasIGhostedPage() {
   const awaitingAnswer = daily && currentItem && !daily.choice;
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -358,5 +366,7 @@ export default function WasIGhostedPage() {
         )}
       </main>
     </div>
+    {levelUpTo !== null && <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />}
+    </>
   );
 }

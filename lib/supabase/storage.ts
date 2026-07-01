@@ -70,12 +70,14 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   }));
 
   const xpOverrides = (settingsRes.data?.xp_overrides ?? {}) as Record<string, number>;
+  const freezeTokens = (settingsRes.data?.freeze_tokens ?? 0) as number;
+  const frozenDates = (settingsRes.data?.frozen_dates ?? []) as string[];
 
   const totalXP =
     tasks.filter((t) => t.completed).reduce((s, t) => s + t.xp, 0) +
     outcomes.reduce((s, o) => s + o.xpAwarded, 0);
 
-  return { tasks, outcomes, totalXP, badges, customActivities, xpOverrides };
+  return { tasks, outcomes, totalXP, badges, customActivities, xpOverrides, freezeTokens, frozenDates };
 }
 
 // ── consent ───────────────────────────────────────────────────────────────────
@@ -137,6 +139,37 @@ export async function saveEmailPrefs(emailReminders: boolean, emailHippoJokes: b
     { onConflict: 'user_id' }
   );
   if (error) console.error('[gainfully] saveEmailPrefs:', error);
+}
+
+// ── streak freeze ─────────────────────────────────────────────────────────────
+
+export async function awardFreezeToken(): Promise<void> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  const { data } = await supabase
+    .from('user_settings').select('freeze_tokens').eq('user_id', session.user.id).maybeSingle();
+  const current = (data?.freeze_tokens ?? 0) as number;
+  const { error } = await supabase.from('user_settings').upsert(
+    { user_id: session.user.id, freeze_tokens: current + 1, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+  if (error) console.error('[gainfully] awardFreezeToken:', error);
+}
+
+export async function applyStreakFreeze(frozenDate: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  const { data } = await supabase
+    .from('user_settings').select('freeze_tokens, frozen_dates').eq('user_id', session.user.id).maybeSingle();
+  const tokens = Math.max(0, ((data?.freeze_tokens ?? 0) as number) - 1);
+  const dates = [...((data?.frozen_dates ?? []) as string[]), frozenDate];
+  const { error } = await supabase.from('user_settings').upsert(
+    { user_id: session.user.id, freeze_tokens: tokens, frozen_dates: dates, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+  if (error) console.error('[gainfully] applyStreakFreeze:', error);
 }
 
 // ── saveState ─────────────────────────────────────────────────────────────────

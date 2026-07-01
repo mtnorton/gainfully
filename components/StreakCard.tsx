@@ -1,5 +1,6 @@
 interface StreakCardProps {
   streak: number;
+  freezeTokens?: number;
 }
 
 function streakMessage(streak: number): string {
@@ -10,7 +11,7 @@ function streakMessage(streak: number): string {
   return "30+ days. You've made this part of who you are.";
 }
 
-export default function StreakCard({ streak }: StreakCardProps) {
+export default function StreakCard({ streak, freezeTokens = 0 }: StreakCardProps) {
   if (streak === 0) {
     return (
       <div
@@ -18,10 +19,13 @@ export default function StreakCard({ streak }: StreakCardProps) {
         style={{ border: '2px solid #FFD9B8' }}
       >
         <span className="text-2xl">🔥</span>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="font-fredoka font-semibold text-[#C2410C]">Start your streak today</p>
           <p className="text-[13px] text-[#B07A4E]">Any task counts — job search or self-care.</p>
         </div>
+        {freezeTokens > 0 && (
+          <span className="text-[12px] font-semibold text-[#0369a1] flex-shrink-0">🧊 ×{freezeTokens}</span>
+        )}
       </div>
     );
   }
@@ -36,7 +40,12 @@ export default function StreakCard({ streak }: StreakCardProps) {
         <p className="font-fredoka font-bold text-[16px] text-[#C2410C]">{streak}-day streak</p>
         <p className="text-[13px] text-[#B07A4E]">{streakMessage(streak)}</p>
       </div>
-      <span className="font-fredoka font-black text-[30px] text-[#EA580C] flex-shrink-0">{streak}</span>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {freezeTokens > 0 && (
+          <span className="text-[12px] font-semibold text-[#0369a1]">🧊 ×{freezeTokens}</span>
+        )}
+        <span className="font-fredoka font-black text-[30px] text-[#EA580C]">{streak}</span>
+      </div>
     </div>
   );
 }

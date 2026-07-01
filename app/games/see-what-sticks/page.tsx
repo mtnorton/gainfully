@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { getLevelProgress } from '@/lib/gameLogic';
+import LevelUpModal from '@/components/LevelUpModal';
+import { getLevelProgress, getLevel } from '@/lib/gameLogic';
 import { TaskCategory } from '@/lib/types';
 import { getGameDay } from '@/lib/gameDay';
 import Matter from 'matter-js';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
 
 const STICKS_KEY = 'gainfully-sticks';
 
@@ -146,7 +147,9 @@ export default function SeeWhatSticksPage() {
   const armRef       = useRef(-30);
   const firedRef     = useRef(false);
   const stallRef     = useRef(new Map<number, number>()); // ballId → stall-frame count
-  const awardXPRef   = useRef<(xp: number) => void>(() => {});
+  const awardXPRef     = useRef<(xp: number) => void>(() => {});
+  const sessionXPRef   = useRef(0);
+  const startLevelRef  = useRef(1);
 
   const [lvl, setLvl]               = useState(getLevelProgress(0));
   const [totalXP, setTotalXP]       = useState(0);
@@ -155,42 +158,71 @@ export default function SeeWhatSticksPage() {
   const [sessionXP, setSessionXP]   = useState(0);
   const [stuckCount, setStuckCount] = useState(0);
   const [lostCount, setLostCount]   = useState(0);
-  const [firedToday, setFiredToday] = useState(false);
-  const [allDone, setAllDone]       = useState(false);
+  const [firedToday, setFiredToday]   = useState(false);
+  const [allDone, setAllDone]         = useState(false);
+  const [levelUpTo, setLevelUpTo]     = useState<number | null>(null);
   const resolvedRef = useRef(0);
 
-  const awardXP = useCallback(async (xp: number) => {
+  const awardXP = useCallback((xp: number) => {
+    sessionXPRef.current += xp;
     setSessionXP(p => p + xp);
     setTotalXP(p => { const n = p + xp; setLvl(getLevelProgress(n)); return n; });
-    try {
-      const data = await loadState();
-      const s: Record<string, unknown> = data ?? { tasks: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
-      const now = new Date().toISOString();
-      s.tasks = [{
-        id: `sticks-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: 'See What Sticks',
-        category: 'selfcare' as TaskCategory,
-        xp, completed: true, completedAt: now, createdAt: now,
-      }, ...((s.tasks as unknown[]) ?? [])];
-      s.totalXP = ((s.totalXP as number) ?? 0) + xp;
-      await saveState(s);
-    } catch { /* ignore */ }
   }, []);
 
   // Keep a ref so the render loop can call awardXP without dep-array issues
   useEffect(() => { awardXPRef.current = awardXP; }, [awardXP]);
 
+  // Single DB write when all balls are resolved
+  useEffect(() => {
+    if (!allDone || sessionXPRef.current === 0) return;
+    const xp = sessionXPRef.current;
+    async function save() {
+      try {
+        const data = await loadState();
+        const s: Record<string, unknown> = data ?? { tasks: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
+        const now = new Date().toISOString();
+        s.tasks = [{
+          id: `sticks-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: 'See What Sticks',
+          category: 'selfcare' as TaskCategory,
+          xp, completed: true, completedAt: now, createdAt: now,
+        }, ...((s.tasks as unknown[]) ?? [])];
+        const oldXP = (s.totalXP as number) ?? 0;
+        s.totalXP = oldXP + xp;
+        await saveState(s);
+        const newLevel = getLevel(oldXP + xp);
+        if (newLevel > startLevelRef.current) {
+          setLevelUpTo(newLevel);
+          awardFreezeToken().catch(() => {});
+        }
+      } catch { /* ignore */ }
+    }
+    save();
+  }, [allDone]);
+
   // Load persisted state
   useEffect(() => {
-    try {
-      const sk = localStorage.getItem(STICKS_KEY);
-      if (sk && JSON.parse(sk).lastFiredDate === getGameDay()) {
-        setFiredToday(true);
-        setAllDone(true);
-        firedRef.current = true;
-      }
-    } catch { /* ignore */ }
-    setMounted(true);
+    async function init() {
+      try {
+        const data = await loadState();
+        if (data) {
+          const xp = (data.totalXP as number) ?? 0;
+          setTotalXP(xp);
+          setLvl(getLevelProgress(xp));
+          startLevelRef.current = getLevel(xp);
+          const earned = ((data.badges as { earned: boolean }[]) ?? []).filter(b => b.earned).length;
+          setBadgeCount(earned);
+        }
+        const sk = localStorage.getItem(STICKS_KEY);
+        if (sk && JSON.parse(sk).lastFiredDate === getGameDay()) {
+          setFiredToday(true);
+          setAllDone(true);
+          firedRef.current = true;
+        }
+      } catch { /* ignore */ }
+      setMounted(true);
+    }
+    init();
   }, []);
 
   // Init Matter.js
@@ -345,6 +377,7 @@ export default function SeeWhatSticksPage() {
   if (!mounted) return null;
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -401,5 +434,10 @@ export default function SeeWhatSticksPage() {
         </div>
       </main>
     </div>
+
+    {levelUpTo !== null && (
+      <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />
+    )}
+    </>
   );
 }

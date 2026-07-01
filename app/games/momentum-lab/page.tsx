@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { getLevelProgress } from '@/lib/gameLogic';
+import { getLevelProgress, getLevel } from '@/lib/gameLogic';
 import { Task, CATEGORY_CONFIG } from '@/lib/types';
 import { getGameDay } from '@/lib/gameDay';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
+import LevelUpModal from '@/components/LevelUpModal';
 
 const MOMENTUM_KEY = 'gainfully-momentum';
 
@@ -135,6 +136,7 @@ export default function MomentumLabPage() {
   const [totalXP, setTotalXP] = useState(0);
   const [badgeCount, setBadgeCount] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
 
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [noEligible, setNoEligible] = useState(false);
@@ -216,12 +218,13 @@ export default function MomentumLabPage() {
   async function handleClaim() {
     if (!daily?.strategy || daily.claimed || !currentTask) return;
     const s = STRATEGIES[daily.strategy];
-    const newTotalXP = totalXP + s.xp;
 
     try {
       const data = await loadState();
       const state: Record<string, unknown> = data ?? { tasks: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
       const now = new Date().toISOString();
+      const oldTotalXP = (state.totalXP as number) ?? 0;
+      const newTotalXP = oldTotalXP + s.xp;
       state.tasks = [{
         id: `momentum-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: s.taskLabel,
@@ -234,6 +237,12 @@ export default function MomentumLabPage() {
       }, ...((state.tasks as Task[]) ?? [])];
       state.totalXP = newTotalXP;
       await saveState(state);
+      if (getLevel(newTotalXP) > getLevel(oldTotalXP)) {
+        setLevelUpTo(getLevel(newTotalXP));
+        awardFreezeToken().catch(() => {});
+      }
+      setTotalXP(newTotalXP);
+      setLevelProgress(getLevelProgress(newTotalXP));
     } catch { /* ignore */ }
 
     const gs = loadGameState();
@@ -241,8 +250,6 @@ export default function MomentumLabPage() {
     saveGameState(gs);
 
     setDaily((prev) => prev ? { ...prev, claimed: true } : prev);
-    setTotalXP(newTotalXP);
-    setLevelProgress(getLevelProgress(newTotalXP));
   }
 
   if (!mounted) return null;
@@ -252,6 +259,7 @@ export default function MomentumLabPage() {
   const catConfig = CATEGORY_CONFIG['networking'];
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -371,5 +379,7 @@ export default function MomentumLabPage() {
         )}
       </main>
     </div>
+    {levelUpTo !== null && <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />}
+    </>
   );
 }

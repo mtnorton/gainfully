@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Task, Badge, CompletionEvent, CustomActivity } from '@/lib/types';
 import { Outcome, OutcomeResult, OutcomeType, OUTCOME_CONFIG, getOutcomeMessage } from '@/lib/outcomes';
-import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
+import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges, GAME_ONLY_TASK_NAMES, hadYesterdayGap, localDateStr } from '@/lib/gameLogic';
 import { getRandomEncouragement, getRandomCelebration } from '@/lib/encouragements';
 import { SLOTS_PICK_KEY, DailyPick } from '@/app/games/slots/page';
 import AppHeader from '@/components/AppHeader';
@@ -17,11 +17,16 @@ import StreakCard from '@/components/StreakCard';
 import ManageActivitiesModal from '@/components/ManageActivitiesModal';
 import OnboardingModal from '@/components/OnboardingModal';
 import ConsentModal from '@/components/ConsentModal';
-import { loadState, saveState, loadConsentStatus } from '@/lib/supabase/storage';
+import { loadState, saveState, loadConsentStatus, awardFreezeToken, applyStreakFreeze } from '@/lib/supabase/storage';
 import { createClient } from '@/lib/supabase/client';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
 }
 
 function getSlotsBonus(taskName: string): number {
@@ -62,6 +67,9 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(true);
+  const [freezeTokens, setFreezeTokens] = useState(0);
+  const [frozenDates, setFrozenDates] = useState<string[]>([]);
+  const [showFreezeBanner, setShowFreezeBanner] = useState(false);
 
   const handleOnboardingClose = useCallback(() => {
     localStorage.setItem('gainfully-onboarded', '1');
@@ -74,19 +82,28 @@ export default function Home() {
       setIsSignedIn(consent?.signedIn ?? false);
       if (consent?.signedIn && !consent.consented) setShowConsent(true);
       if (data) {
-        const parsed = data as unknown as AppState;
+        const parsed = data as unknown as AppState & { freezeTokens?: number; frozenDates?: string[] };
         const mergedBadges = getInitialBadges().map((b) => {
           const savedBadge = (parsed.badges ?? []).find((sb) => sb.id === b.id);
           return savedBadge ?? b;
         });
+        const tasks = parsed.tasks ?? [];
+        const outcomes = parsed.outcomes ?? [];
+        const tokens = parsed.freezeTokens ?? 0;
+        const frozen = parsed.frozenDates ?? [];
         setState({
-          tasks: parsed.tasks ?? [],
-          outcomes: parsed.outcomes ?? [],
+          tasks,
+          outcomes,
           totalXP: parsed.totalXP ?? 0,
           badges: mergedBadges,
           customActivities: parsed.customActivities ?? [],
           xpOverrides: parsed.xpOverrides ?? {},
         });
+        setFreezeTokens(tokens);
+        setFrozenDates(frozen);
+        if (tokens > 0 && hadYesterdayGap(tasks, outcomes, frozen)) {
+          setShowFreezeBanner(true);
+        }
       }
       if (!localStorage.getItem('gainfully-onboarded')) {
         setShowOnboarding(true);
@@ -146,7 +163,7 @@ export default function Home() {
         const newBadges = checkForNewBadges(completedTasks, newTask, prev.badges, newTotalXP);
 
         const allTasks = [newTask, ...prev.tasks];
-        const newStreak = calculateStreak(allTasks, prev.outcomes);
+        const newStreak = calculateStreak(allTasks, prev.outcomes, frozenDates);
         const allCompleted = allTasks.filter((t) => t.completed);
         const streakBadges = checkForStreakBadges(newStreak, allCompleted, prev.badges);
         const allNewBadges = [...newBadges, ...streakBadges];
@@ -156,6 +173,13 @@ export default function Home() {
         });
 
         setTimeout(() => {
+          trackEvent('task_logged', { category: newTask.category, xp: newTask.xp });
+          if (newLevel > oldLevel) {
+            trackEvent('level_up', { level: newLevel });
+            awardFreezeToken().catch(() => {});
+            setFreezeTokens((prev) => prev + 1);
+          }
+          allNewBadges.forEach((b) => trackEvent('badge_earned', { badge_id: b.id }));
           setCompletionEvent({
             taskName: newTask.name,
             xpEarned: newTask.xp,
@@ -200,6 +224,13 @@ export default function Home() {
       });
 
       setTimeout(() => {
+        trackEvent('task_completed', { category: task.category, xp: taskXP });
+        if (newLevel > oldLevel) {
+          trackEvent('level_up', { level: newLevel });
+          awardFreezeToken().catch(() => {});
+          setFreezeTokens((prev) => prev + 1);
+        }
+        allNewBadges.forEach((b) => trackEvent('badge_earned', { badge_id: b.id }));
         setCompletionEvent({
           taskName: task.name,
           xpEarned: taskXP,
@@ -279,7 +310,7 @@ export default function Home() {
         );
 
         const allOutcomes = [...prev.outcomes, newOutcome];
-        const newStreak = calculateStreak(prev.tasks, allOutcomes);
+        const newStreak = calculateStreak(prev.tasks, allOutcomes, frozenDates);
         const streakBadges = checkForStreakBadges(newStreak, prev.tasks.filter((t) => t.completed), prev.badges);
         const allNewBadges = [...outcomeBadges, ...streakBadges];
 
@@ -289,6 +320,13 @@ export default function Home() {
         });
 
         setTimeout(() => {
+          trackEvent('outcome_logged', { type, xp: config.xp });
+          if (newLevel > oldLevel) {
+            trackEvent('level_up', { level: newLevel });
+            awardFreezeToken().catch(() => {});
+            setFreezeTokens((prev) => prev + 1);
+          }
+          allNewBadges.forEach((b) => trackEvent('badge_earned', { badge_id: b.id }));
           setLogOutcomeTaskId(null);
           setOutcomeResult({
             type,
@@ -311,12 +349,21 @@ export default function Home() {
     []
   );
 
+  const handleUseFreeze = useCallback(async () => {
+    const now = new Date();
+    const yesterday = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+    setShowFreezeBanner(false);
+    setFrozenDates((prev) => [...prev, yesterday]);
+    setFreezeTokens((prev) => Math.max(0, prev - 1));
+    await applyStreakFreeze(yesterday);
+  }, []);
+
   const activeTasks = state.tasks.filter((t) => !t.completed);
   const completedTasks = state.tasks.filter((t) => t.completed);
   const GAME_TASK_NAMES = GAME_ONLY_TASK_NAMES;
   const completedNonGameCount = completedTasks.filter((t) => !GAME_TASK_NAMES.has(t.name)).length;
   const levelProgress = getLevelProgress(state.totalXP);
-  const streak = calculateStreak(state.tasks, state.outcomes);
+  const streak = calculateStreak(state.tasks, state.outcomes, frozenDates);
 
   const logOutcomeModalOpen = logOutcomeTaskId !== null;
   const preselectedTask =
@@ -377,7 +424,35 @@ export default function Home() {
           </div>
         )}
 
-        <StreakCard streak={streak} />
+        {showFreezeBanner && (
+          <div
+            className="rounded-[16px] px-4 py-3 flex items-center gap-3"
+            style={{ background: '#e0f2fe', border: '2px solid #bae6fd' }}
+          >
+            <span className="text-2xl flex-shrink-0">🧊</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-fredoka font-bold text-[14px] text-[#0369a1]">Your streak is at risk</p>
+              <p className="text-[12px] text-[#0284c7]">Use a freeze to protect yesterday&apos;s gap. ({freezeTokens} remaining)</p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => setShowFreezeBanner(false)}
+                className="text-[12px] text-[#0369a1] font-semibold px-2 py-1 rounded-lg hover:bg-sky-100 transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleUseFreeze}
+                className="text-[12px] text-white font-semibold px-3 py-1 rounded-lg transition-colors"
+                style={{ background: '#0369a1' }}
+              >
+                Use Freeze
+              </button>
+            </div>
+          </div>
+        )}
+
+        <StreakCard streak={streak} freezeTokens={freezeTokens} />
 
         {/* Activity log / planned tasks */}
         <section>

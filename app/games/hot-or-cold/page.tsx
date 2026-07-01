@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { getLevelProgress } from '@/lib/gameLogic';
+import { getLevelProgress, getLevel } from '@/lib/gameLogic';
 import { TaskCategory } from '@/lib/types';
 import { getGameDay } from '@/lib/gameDay';
-import { loadState, saveState } from '@/lib/supabase/storage';
+import { loadState, saveState, awardFreezeToken } from '@/lib/supabase/storage';
+import LevelUpModal from '@/components/LevelUpModal';
 
 const HOTCOLD_KEY = 'gainfully-hotcold';
 
@@ -69,6 +70,7 @@ export default function HotOrColdPage() {
   const [mounted, setMounted] = useState(false);
 
   const [campaign, setCampaign] = useState<HotColdCampaign | null>(null);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
 
   // Setup form state
   const [company, setCompany] = useState('');
@@ -96,6 +98,10 @@ export default function HotOrColdPage() {
     if (newTotal !== null) {
       setTotalXP(newTotal);
       setLevelProgress(getLevelProgress(newTotal));
+      if (getLevel(newTotal) > getLevel(newTotal - xp)) {
+        setLevelUpTo(getLevel(newTotal));
+        awardFreezeToken().catch(() => {});
+      }
     }
   }
 
@@ -142,6 +148,7 @@ export default function HotOrColdPage() {
   const bonusEligible = completedInOneDay && !campaign?.bonusClaimed;
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
 
@@ -376,5 +383,7 @@ export default function HotOrColdPage() {
         )}
       </main>
     </div>
+    {levelUpTo !== null && <LevelUpModal level={levelUpTo} onClose={() => setLevelUpTo(null)} />}
+    </>
   );
 }

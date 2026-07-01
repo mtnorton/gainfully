@@ -71,6 +71,9 @@ export default function EncouragementModal({ completionEvent, onClose }: Encoura
             <div className="text-2xl mb-1">🎉</div>
             <div className="font-fredoka font-bold text-lg text-[#5B3FD6]">Level Up!</div>
             <div className="text-[#6f6155] text-sm">You&apos;re now Level {completionEvent.newLevel}!</div>
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-[#0369a1]" style={{ background: '#e0f2fe', border: '1.5px solid #bae6fd' }}>
+              🧊 +1 Streak Freeze earned
+            </div>
           </div>
         )}
 
