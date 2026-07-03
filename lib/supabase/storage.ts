@@ -27,9 +27,9 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   const userId = session.user.id;
 
   const [tasksRes, outcomesRes, badgesRes, activitiesRes, settingsRes] = await Promise.all([
-    supabase.from('tasks').select('*').eq('user_id', userId),
-    supabase.from('outcomes').select('*').eq('user_id', userId),
-    supabase.from('user_badges').select('*').eq('user_id', userId),
+    supabase.from('tasks').select('*').eq('user_id', userId).eq('archived', false),
+    supabase.from('outcomes').select('*').eq('user_id', userId).eq('archived', false),
+    supabase.from('user_badges').select('*').eq('user_id', userId).eq('archived', false),
     supabase.from('custom_activities').select('*').eq('user_id', userId),
     supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
   ]);
@@ -88,9 +88,11 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   const freezeTokens = (settingsRes.data?.freeze_tokens ?? 0) as number;
   const frozenDates = (settingsRes.data?.frozen_dates ?? []) as string[];
 
+  const retainedXP = (settingsRes.data?.retained_xp ?? 0) as number;
   const totalXP =
     tasks.filter((t) => t.completed).reduce((s, t) => s + t.xp, 0) +
-    outcomes.reduce((s, o) => s + o.xpAwarded, 0);
+    outcomes.reduce((s, o) => s + o.xpAwarded, 0) +
+    retainedXP;
 
   return { tasks, outcomes, totalXP, badges, customActivities, xpOverrides, freezeTokens, frozenDates };
 }
@@ -217,7 +219,7 @@ export async function saveState(state: unknown): Promise<void> {
     rows: object[],
   ) {
     const { data: existing, error } = await supabase
-      .from(table).select('id').eq('user_id', userId);
+      .from(table).select('id').eq('user_id', userId).eq('archived', false);
     if (error) { console.error(`[gainfully] saveState ${table} fetch:`, error); return; }
 
     const toDelete = (existing ?? [])
@@ -287,7 +289,7 @@ export async function saveState(state: unknown): Promise<void> {
     (async () => {
       const earned = badges.filter((b) => b.earned);
       const { error: delErr } = await supabase
-        .from('user_badges').delete().eq('user_id', userId);
+        .from('user_badges').delete().eq('user_id', userId).eq('archived', false);
       if (delErr) { console.error('[gainfully] saveState badges delete:', delErr); return; }
       if (earned.length > 0) {
         const { error: insErr } = await supabase.from('user_badges').insert(
@@ -309,4 +311,38 @@ export async function saveState(state: unknown): Promise<void> {
       if (error) console.error('[gainfully] saveState settings:', error);
     })(),
   ]);
+}
+
+// ── archiveSearch ─────────────────────────────────────────────────────────────
+
+export async function archiveSearch(keepXP: boolean): Promise<void> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  const userId = session.user.id;
+
+  let retainedXP = 0;
+  if (keepXP) {
+    const [tasksRes, outcomesRes, settingsRes] = await Promise.all([
+      supabase.from('tasks').select('xp, completed').eq('user_id', userId).eq('archived', false),
+      supabase.from('outcomes').select('xp_awarded').eq('user_id', userId).eq('archived', false),
+      supabase.from('user_settings').select('retained_xp').eq('user_id', userId).maybeSingle(),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taskXP = (tasksRes.data ?? []).reduce((s: number, t: any) => s + (t.completed ? t.xp : 0), 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const outcomeXP = (outcomesRes.data ?? []).reduce((s: number, o: any) => s + o.xp_awarded, 0);
+    retainedXP = ((settingsRes.data?.retained_xp ?? 0) as number) + taskXP + outcomeXP;
+  }
+
+  await supabase.from('tasks').update({ archived: true }).eq('user_id', userId).eq('archived', false);
+  await supabase.from('outcomes').update({ archived: true }).eq('user_id', userId).eq('archived', false);
+  if (!keepXP) {
+    await supabase.from('user_badges').update({ archived: true }).eq('user_id', userId).eq('archived', false);
+  }
+  const { error } = await supabase.from('user_settings').upsert(
+    { user_id: userId, retained_xp: retainedXP, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+  if (error) console.error('[gainfully] archiveSearch settings:', error);
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getLevelProgress, getInitialBadges, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
 import { Badge } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
-import { loadState, loadConsentStatus, saveEmailPrefs } from '@/lib/supabase/storage';
+import { loadState, loadConsentStatus, saveEmailPrefs, archiveSearch } from '@/lib/supabase/storage';
 import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 interface UserModalProps {
@@ -20,6 +20,9 @@ export default function UserModal({ onClose }: UserModalProps) {
   const [signingIn, setSigningIn] = useState(false);
   const [emailReminders,  setEmailReminders]  = useState(false);
   const [emailHippoJokes, setEmailHippoJokes] = useState(false);
+  const [dangerConfirm, setDangerConfirm] = useState<'new_search' | 'full_reset' | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [dangerOpen, setDangerOpen] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -92,6 +95,18 @@ export default function UserModal({ onClose }: UserModalProps) {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
+  }
+
+  async function handleNewSearchConfirm() {
+    setArchiving(true);
+    await archiveSearch(true);
+    window.location.reload();
+  }
+
+  async function handleFullResetConfirm() {
+    setArchiving(true);
+    await archiveSearch(false);
+    window.location.reload();
   }
 
   const lp = getLevelProgress(totalXP);
@@ -256,6 +271,88 @@ export default function UserModal({ onClose }: UserModalProps) {
               {signingIn ? 'Redirecting…' : 'Sign in with Google'}
             </button>
           </>
+        )}
+
+        {/* Danger Zone — collapsed by default */}
+        <div className="mt-4" style={{ borderTop: '2px solid #F1E2CF' }} />
+        <button
+          onClick={() => { setDangerOpen((v) => !v); setDangerConfirm(null); }}
+          className="w-full flex items-center justify-between pt-2.5 pb-1 text-[11px] font-fredoka font-semibold text-[#B8A99A] uppercase tracking-wide"
+        >
+          Danger Zone
+          <span className="text-[10px] text-[#C8B8A8]">{dangerOpen ? '▲' : '▼'}</span>
+        </button>
+        {dangerOpen && (
+          <div className="space-y-2 mt-2">
+            <div>
+              {dangerConfirm === 'new_search' ? (
+                <div className="rounded-xl p-3" style={{ background: '#FFF7F0', border: '2px solid #FECACA' }}>
+                  <p className="text-[12px] text-[#C2410C] font-fredoka font-semibold mb-2">
+                    Archive all tasks and outcomes? Your XP and badges are kept.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDangerConfirm(null)}
+                      className="flex-1 py-1.5 rounded-lg text-[12px] font-semibold text-[#97887A] transition-colors hover:bg-[#F1E2CF]"
+                      style={{ border: '1.5px solid #EFE0CC' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleNewSearchConfirm}
+                      disabled={archiving}
+                      className="flex-1 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-colors disabled:opacity-60"
+                      style={{ background: '#EA580C' }}
+                    >
+                      {archiving ? 'Archiving…' : 'Confirm'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setDangerConfirm('new_search')}
+                  className="w-full text-left py-2 px-3 rounded-xl text-[12px] font-fredoka font-semibold text-[#EA580C] transition-colors hover:bg-[#FFF7F0]"
+                  style={{ border: '1.5px solid #FECACA' }}
+                >
+                  Start New Search
+                </button>
+              )}
+            </div>
+            <div>
+              {dangerConfirm === 'full_reset' ? (
+                <div className="rounded-xl p-3" style={{ background: '#FFF1F2', border: '2px solid #FECDD3' }}>
+                  <p className="text-[12px] text-[#BE123C] font-fredoka font-semibold mb-2">
+                    Reset everything — all XP, tasks, outcomes, and badges will be cleared.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDangerConfirm(null)}
+                      className="flex-1 py-1.5 rounded-lg text-[12px] font-semibold text-[#97887A] transition-colors hover:bg-[#F1E2CF]"
+                      style={{ border: '1.5px solid #EFE0CC' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleFullResetConfirm}
+                      disabled={archiving}
+                      className="flex-1 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-colors disabled:opacity-60"
+                      style={{ background: '#BE123C' }}
+                    >
+                      {archiving ? 'Resetting…' : 'Confirm'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setDangerConfirm('full_reset')}
+                  className="w-full text-left py-2 px-3 rounded-xl text-[12px] font-fredoka font-semibold text-[#BE123C] transition-colors hover:bg-[#FFF1F2]"
+                  style={{ border: '1.5px solid #FECDD3' }}
+                >
+                  Full Reset
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

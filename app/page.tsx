@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Task, Badge, CompletionEvent, CustomActivity } from '@/lib/types';
+import { Task, Badge, CompletionEvent, CustomActivity, VictoryStats } from '@/lib/types';
 import { Outcome, OutcomeResult, OutcomeType, OUTCOME_CONFIG, getOutcomeMessage } from '@/lib/outcomes';
 import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges, GAME_ONLY_TASK_NAMES, hadYesterdayGap, localDateStr } from '@/lib/gameLogic';
 import { getRandomEncouragement, getRandomCelebration } from '@/lib/encouragements';
@@ -17,7 +17,8 @@ import StreakCard from '@/components/StreakCard';
 import ManageActivitiesModal from '@/components/ManageActivitiesModal';
 import OnboardingModal from '@/components/OnboardingModal';
 import ConsentModal from '@/components/ConsentModal';
-import { loadState, saveState, loadConsentStatus, ensureSession, awardFreezeToken, applyStreakFreeze } from '@/lib/supabase/storage';
+import VictoryModal from '@/components/VictoryModal';
+import { loadState, saveState, loadConsentStatus, ensureSession, awardFreezeToken, applyStreakFreeze, archiveSearch } from '@/lib/supabase/storage';
 import { createClient } from '@/lib/supabase/client';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
@@ -71,6 +72,7 @@ export default function Home() {
   const [freezeTokens, setFreezeTokens] = useState(0);
   const [frozenDates, setFrozenDates] = useState<string[]>([]);
   const [showFreezeBanner, setShowFreezeBanner] = useState(false);
+  const [victoryStats, setVictoryStats] = useState<VictoryStats | null>(null);
 
   const handleOnboardingClose = useCallback(() => {
     localStorage.setItem('gainfully-onboarded', '1');
@@ -344,6 +346,31 @@ export default function Home() {
           return fresh ?? b;
         });
 
+        // Compute victory stats inside closure so we have access to prev
+        const victoryData: VictoryStats | null = type === 'accepted_offer' ? (() => {
+          const task = prev.tasks.find((t) => t.id === taskId);
+          const allDates = [
+            ...prev.tasks.map((t) => t.createdAt),
+            ...prev.outcomes.map((o) => o.createdAt),
+          ].map((d) => new Date(d).getTime());
+          const earliest = allDates.length > 0 ? Math.min(...allDates) : Date.now();
+          const weeksSearching = Math.max(1, Math.round((Date.now() - earliest) / (7 * 86400000)));
+          const interviewTypes = new Set(['interview', 'technical_screening', 'technical_interview', 'second_interview']);
+          const interviewsLanded = [...prev.outcomes, newOutcome].filter((o) => interviewTypes.has(o.type)).length;
+          const activitiesCompleted = prev.tasks.filter((t) => t.completed && !GAME_ONLY_TASK_NAMES.has(t.name)).length;
+          return {
+            company: task?.company,
+            xpEarned: config.xp,
+            totalXP: newTotalXP,
+            weeksSearching,
+            activitiesCompleted,
+            outcomesLogged: prev.outcomes.length + 1,
+            interviewsLanded,
+            badgesEarned: updatedBadges.filter((b) => b.earned).length,
+            newBadges: allNewBadges,
+          };
+        })() : null;
+
         setTimeout(() => {
           trackEvent('outcome_logged', { type, xp: config.xp });
           if (newLevel > oldLevel) {
@@ -353,15 +380,19 @@ export default function Home() {
           }
           allNewBadges.forEach((b) => trackEvent('badge_earned', { badge_id: b.id }));
           setLogOutcomeTaskId(null);
-          setOutcomeResult({
-            type,
-            xpAwarded: config.xp,
-            message: getOutcomeMessage(type),
-            newBadges: allNewBadges,
-            leveledUp: newLevel > oldLevel,
-            newLevel,
-            streak: isFirstToday ? newStreak : 0,
-          });
+          if (victoryData) {
+            setVictoryStats(victoryData);
+          } else {
+            setOutcomeResult({
+              type,
+              xpAwarded: config.xp,
+              message: getOutcomeMessage(type),
+              newBadges: allNewBadges,
+              leveledUp: newLevel > oldLevel,
+              newLevel,
+              streak: isFirstToday ? newStreak : 0,
+            });
+          }
         }, 0);
 
         return {
@@ -382,6 +413,19 @@ export default function Home() {
     setFrozenDates((prev) => [...prev, yesterday]);
     setFreezeTokens((prev) => Math.max(0, prev - 1));
     await applyStreakFreeze(yesterday);
+  }, []);
+
+  const handleStartNewSearch = useCallback(() => {
+    setVictoryStats(null);
+    archiveSearch(true).then(() => {
+      setState((prev) => ({
+        ...buildDefaultState(),
+        badges: prev.badges,
+        totalXP: prev.totalXP,
+        customActivities: prev.customActivities,
+        xpOverrides: prev.xpOverrides,
+      }));
+    });
   }, []);
 
   const activeTasks = state.tasks.filter((t) => !t.completed);
@@ -570,6 +614,11 @@ export default function Home() {
       />
       {showOnboarding && <OnboardingModal onClose={handleOnboardingClose} />}
       {showConsent && <ConsentModal onDone={() => setShowConsent(false)} />}
+      <VictoryModal
+        stats={victoryStats}
+        onClose={() => setVictoryStats(null)}
+        onStartFresh={handleStartNewSearch}
+      />
     </div>
   );
 }

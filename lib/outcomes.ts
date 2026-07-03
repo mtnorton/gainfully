@@ -1,6 +1,7 @@
 import { Badge } from './types';
 
 export type OutcomeType =
+  | 'accepted_offer'
   | 'interview'
   | 'technical_screening'
   | 'technical_interview'
@@ -52,6 +53,15 @@ export interface OutcomeResult {
 }
 
 export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
+  accepted_offer: {
+    label: 'Accepted an Offer',
+    shortLabel: 'Got the Job!',
+    icon: '🎊',
+    xp: 500,
+    xpLabel: '+500 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#FEF3C7] text-[#B45309] border-[#FCD34D]',
+  },
   interview: {
     label: 'Interview Scheduled',
     shortLabel: 'Interview',
@@ -208,6 +218,12 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
 };
 
 const OUTCOME_MESSAGES: Record<OutcomeType, string[]> = {
+  accepted_offer: [
+    "You did it. This is what all of it was for.",
+    "Every application, every follow-up, every rejection — it all led here. Congratulations.",
+    "The search is over. You won. Take a moment to actually feel that.",
+    "You earned this. Not luck — persistence, resilience, and showing up. That's you.",
+  ],
   interview: [
     "An interview! All that effort is paying off. Go show them what you've got!",
     "This is what you've been working toward. You earned this shot.",

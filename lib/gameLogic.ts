@@ -144,6 +144,9 @@ export const BADGE_DEFINITIONS: Omit<Badge, 'earned' | 'earnedAt'>[] = [
   { id: 'power_day',    name: 'Power Day',  description: 'Complete 5 tasks in a single day',  icon: '🌪️' },
   { id: 'overdrive',    name: 'Overdrive',  description: 'Complete 10 tasks in a single day', icon: '🏎️' },
 
+  // ── Endgame ───────────────────────────────────────────────────────
+  { id: 'gainfully_employed', name: 'Gainfully Employed', description: 'Accept a job offer', icon: '🎊' },
+
   // ── Longevity ─────────────────────────────────────────────────────
   { id: 'one_month',    name: 'Committed',              description: 'One month into your job search',             icon: '📅' },
   { id: 'three_months', name: 'In It for the Long Haul', description: 'Three months in and still going',           icon: '🗓️' },
@@ -236,7 +239,8 @@ export function checkForNewBadgesOnOutcome(
   const secondCount      = all.filter((o) => o.type === 'second_interview').length;
   const resilienceCount  = all.filter((o) => o.type === 'rejection' || o.type === 'ghosted').length;
   const referralCount    = all.filter((o) => o.type === 'referral').length;
-  const hasOffer         = all.some((o) => o.type === 'offer');
+  const hasOffer         = all.some((o) => o.type === 'offer' || o.type === 'accepted_offer');
+  const hasAccepted      = all.some((o) => o.type === 'accepted_offer');
   const newLevel         = getLevel(newTotalXP);
 
   const offerCount    = all.filter((o) => o.type === 'offer').length;
@@ -267,6 +271,9 @@ export function checkForNewBadgesOnOutcome(
   // Offers
   if (offerCount >= 1) shouldEarn.add('offer_received');
   if (offerCount >= 3) shouldEarn.add('three_offers');
+
+  // Endgame
+  if (hasAccepted) shouldEarn.add('gainfully_employed');
 
   // Resilience
   if (resilienceCount >= 1)  shouldEarn.add('resilient');

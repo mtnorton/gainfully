@@ -119,6 +119,18 @@ export interface Badge {
   earnedAt?: string;
 }
 
+export interface VictoryStats {
+  company?: string;
+  xpEarned: number;
+  totalXP: number;
+  weeksSearching: number;
+  activitiesCompleted: number;
+  outcomesLogged: number;
+  interviewsLanded: number;
+  badgesEarned: number;
+  newBadges: Badge[];
+}
+
 export interface CompletionEvent {
   taskName: string;
   xpEarned: number;
