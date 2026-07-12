@@ -53,6 +53,7 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
     jobTitle:     r.job_title      ?? undefined,
     activityDate: r.activity_date  ?? undefined,
     ats:          r.ats            ?? undefined,
+    platform:     r.platform       ?? undefined,
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -255,6 +256,7 @@ export async function saveState(state: unknown): Promise<void> {
         job_title:     t.jobTitle      ?? null,
         activity_date: t.activityDate  ?? null,
         ats:           t.ats           ?? null,
+        platform:      t.platform      ?? null,
       })),
     ),
 

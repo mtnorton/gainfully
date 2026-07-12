@@ -20,11 +20,8 @@ export default function ActivityFeed({ outcomes, tasks }: ActivityFeedProps) {
         className="rounded-[18px] p-8 text-center"
         style={{ border: '2px dashed #EFE0CC' }}
       >
-        <div className="text-4xl mb-3">📋</div>
-        <p className="text-[#2C2724] font-fredoka font-semibold mb-1">No results logged yet</p>
-        <p className="text-[#97887A] text-sm leading-relaxed max-w-xs mx-auto">
-          Log what happened after a task — an interview, a rejection, a response, getting ghosted. It all counts.
-        </p>
+        <p className="text-[#2C2724] font-fredoka font-semibold mb-0.5">No recent results.</p>
+        <p className="text-[#97887A] text-sm">No news is… no news.</p>
       </div>
     );
   }

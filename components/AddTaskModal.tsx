@@ -9,7 +9,6 @@ type TaskData = Omit<Task, 'id' | 'completed' | 'createdAt'>;
 interface AddTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (task: TaskData) => void;
   onLogNow: (task: TaskData) => void;
   customActivities: CustomActivity[];
   xpOverrides: Record<string, number>;
@@ -59,13 +58,24 @@ const CATEGORY_COMPANY: Record<TaskCategory, { label: string; placeholder: strin
   custom:      null,
 };
 
+const APPLICATION_PLATFORMS = [
+  'LinkedIn',
+  'Indeed',
+  'WellFound',
+  'Glassdoor',
+  'Built In',
+  'Company Website',
+  'Recruiter Outreach',
+  'Referral',
+  'Other',
+];
+
 const inputClass = 'w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] placeholder-[#C4B5A5] outline-none transition-colors text-sm';
 const inputStyle = { border: '2px solid #F1E2CF' };
 
 export default function AddTaskModal({
   isOpen,
   onClose,
-  onAdd,
   onLogNow,
   customActivities,
   xpOverrides,
@@ -81,6 +91,7 @@ export default function AddTaskModal({
   const [jobTitle, setJobTitle] = useState('');
   const [activityDate, setActivityDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [ats, setAts] = useState('');
+  const [platform, setPlatform] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   if (!isOpen) return null;
@@ -129,6 +140,7 @@ export default function AddTaskModal({
     jobTitle: category === 'application' && jobTitle.trim() ? jobTitle.trim() : undefined,
     activityDate: activityDate || undefined,
     ats: ats || undefined,
+    platform: category === 'application' && platform ? platform : undefined,
   });
 
   const resetForm = () => {
@@ -139,6 +151,7 @@ export default function AddTaskModal({
     setActivityDate(new Date().toISOString().split('T')[0]);
     setXP(CATEGORY_CONFIG['application'].defaultXP);
     setAts('');
+    setPlatform('');
     setShowAdvanced(false);
     onClose();
   };
@@ -147,12 +160,6 @@ export default function AddTaskModal({
     e.preventDefault();
     if (!name.trim()) return;
     onLogNow(buildTaskData());
-    resetForm();
-  };
-
-  const handlePlanForLater = () => {
-    if (!name.trim()) return;
-    onAdd(buildTaskData());
     resetForm();
   };
 
@@ -355,6 +362,23 @@ export default function AddTaskModal({
 
                   <div>
                     <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
+                      Where did you find it? <span className="text-[#A99C8D] font-normal">(optional)</span>
+                    </label>
+                    <select
+                      value={platform}
+                      onChange={(e) => setPlatform(e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    >
+                      <option value="">Select platform…</option>
+                      {APPLICATION_PLATFORMS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
                       Painful portal?{' '}
                       <span className="text-[#A99C8D] font-normal">earns bonus XP for your suffering</span>
                     </label>
@@ -398,15 +422,6 @@ export default function AddTaskModal({
               style={{ background: '#F2E8DB', border: '2px solid #EFE0CC' }}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handlePlanForLater}
-              disabled={!name.trim()}
-              className="flex-1 py-2.5 rounded-xl text-[#6f6155] hover:text-[#2C2724] disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold text-sm"
-              style={{ border: '2px solid #EFE0CC', background: '#FBF3E8' }}
-            >
-              Plan for later
             </button>
             <button
               type="submit"

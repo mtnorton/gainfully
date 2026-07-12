@@ -201,7 +201,7 @@ export default function PipelinePage() {
       <main className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="font-fredoka font-bold text-[22px] text-[#2C2724]">Pipeline</h1>
+            <h1 className="font-fredoka font-bold text-[22px] text-[#2C2724]">Track</h1>
             <p className="text-[12px] text-[#97887A] mt-0.5">
               {tasks.length} total tasks · {sorted.length} shown · click any row to view details
             </p>

@@ -6,6 +6,7 @@ export type OutcomeType =
   | 'technical_screening'
   | 'technical_interview'
   | 'second_interview'
+  | 'reference_check'
   | 'offer'
   | 'response'
   | 'referral'
@@ -95,6 +96,15 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     icon: '🔄',
     xp: 50,
     xpLabel: '+50 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
+  },
+  reference_check: {
+    label: 'Reference Check',
+    shortLabel: 'Ref Check',
+    icon: '📞',
+    xp: 40,
+    xpLabel: '+40 XP',
     sentiment: 'positive',
     colorClasses: 'bg-[#DCFAE7] text-[#16A34A] border-[#B0EFC8]',
   },
@@ -246,6 +256,12 @@ const OUTCOME_MESSAGES: Record<OutcomeType, string[]> = {
     "Second interview — they're seriously interested. Keep that momentum going!",
     "You made a strong enough impression to be invited back. That's no small thing.",
     "You're through to the next round. Go show them the full picture.",
+  ],
+  reference_check: [
+    "They're checking your references — a good sign, though some do this early. Keep the pipeline moving.",
+    "Reference check logged. Encouraging, but not a done deal. Stay focused and keep going.",
+    "This is the final lap. Someone out there is about to say great things about you.",
+    "They don't check references on people they're not serious about. You're close.",
   ],
   offer: [
     "You did it! An offer is proof that your persistence absolutely paid off.",

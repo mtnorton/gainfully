@@ -155,19 +155,6 @@ export default function Home() {
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
   }, [state, mounted]);
 
-  const handleAddTask = useCallback(
-    (taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>) => {
-      const newTask: Task = {
-        ...taskData,
-        id: generateId(),
-        completed: false,
-        createdAt: new Date().toISOString(),
-      };
-      setState((prev) => ({ ...prev, tasks: [newTask, ...prev.tasks] }));
-    },
-    []
-  );
-
   const handleLogNow = useCallback(
     (taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>) => {
       const slotsBonus = getSlotsBonus(taskData.name);
@@ -428,10 +415,19 @@ export default function Home() {
     });
   }, []);
 
-  const activeTasks = state.tasks.filter((t) => !t.completed);
   const completedTasks = state.tasks.filter((t) => t.completed);
   const GAME_TASK_NAMES = GAME_ONLY_TASK_NAMES;
   const completedNonGameCount = completedTasks.filter((t) => !GAME_TASK_NAMES.has(t.name)).length;
+
+  const feedCutoff = new Date();
+  feedCutoff.setDate(feedCutoff.getDate() - 7);
+  feedCutoff.setHours(0, 0, 0, 0);
+
+  const recentActivities = completedTasks
+    .filter((t) => !GAME_TASK_NAMES.has(t.name) && new Date(t.completedAt ?? t.createdAt) >= feedCutoff)
+    .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
+
+  const recentOutcomes = state.outcomes.filter((o) => new Date(o.date) >= feedCutoff);
   const levelProgress = getLevelProgress(state.totalXP);
   const streak = calculateStreak(state.tasks, state.outcomes, frozenDates);
 
@@ -524,11 +520,11 @@ export default function Home() {
 
         <StreakCard streak={streak} freezeTokens={freezeTokens} />
 
-        {/* Activity log / planned tasks */}
+        {/* Recent activities (last 7 days) */}
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-fredoka font-bold text-[17px] text-[#2C2724]">
-              Planned{activeTasks.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{activeTasks.length}</span>}
+              Recent Activity{recentActivities.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{recentActivities.length}</span>}
             </h2>
             <button
               onClick={() => setIsAddModalOpen(true)}
@@ -539,14 +535,14 @@ export default function Home() {
             </button>
           </div>
 
-          {activeTasks.length === 0 ? (
+          {recentActivities.length === 0 ? (
             <div className="rounded-[18px] p-8 text-center" style={{ border: '2px dashed #EFE0CC' }}>
-              <p className="text-[#2C2724] font-fredoka font-semibold mb-0.5">Nothing planned yet.</p>
-              <p className="text-[#97887A] text-sm">Log what you just did, or plan something for later.</p>
+              <p className="text-[#2C2724] font-fredoka font-semibold mb-0.5">No recent activity.</p>
+              <p className="text-[#97887A] text-sm">The job market won&apos;t conquer itself.</p>
             </div>
           ) : (
             <div className="space-y-2.5">
-              {activeTasks.map((task) => (
+              {recentActivities.map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -560,11 +556,11 @@ export default function Home() {
           )}
         </section>
 
-        {/* Results / activity feed */}
+        {/* Recent results (last 7 days) */}
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-fredoka font-bold text-[17px] text-[#2C2724]">
-              Results{state.outcomes.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{state.outcomes.length}</span>}
+              Recent Results{recentOutcomes.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{recentOutcomes.length}</span>}
             </h2>
             <button
               onClick={() => setLogOutcomeTaskId(undefined)}
@@ -574,7 +570,7 @@ export default function Home() {
               + Log a Result
             </button>
           </div>
-          <ActivityFeed outcomes={state.outcomes} tasks={state.tasks} />
+          <ActivityFeed outcomes={recentOutcomes} tasks={state.tasks} />
         </section>
 
       </main>
@@ -582,7 +578,6 @@ export default function Home() {
       <AddTaskModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onAdd={handleAddTask}
         onLogNow={handleLogNow}
         customActivities={state.customActivities}
         xpOverrides={state.xpOverrides}

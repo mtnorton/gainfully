@@ -17,28 +17,18 @@ export default function TaskCard({ task, outcomes, onComplete, onDelete, onLogOu
 
   return (
     <div
-      className={`rounded-[18px] p-4 transition-all duration-200 ${
-        task.completed ? 'opacity-60' : ''
-      }`}
-      style={
-        task.completed
-          ? { background: '#FBF3E8', border: '2px solid #EFE0CC' }
-          : { background: '#fff', border: '2px solid #F1E2CF', borderBottom: '4px solid #EFE0CC' }
-      }
+      className="rounded-[18px] p-4 transition-all duration-200"
+      style={{ background: '#fff', border: '2px solid #F1E2CF', borderBottom: '4px solid #EFE0CC' }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div
             className="w-[38px] h-[38px] rounded-[11px] bg-[#F2E8DB] flex items-center justify-center text-[19px] flex-shrink-0"
           >
-            {task.completed ? '✅' : config.icon}
+            {config.icon}
           </div>
           <div className="flex-1 min-w-0">
-            <p
-              className={`font-fredoka font-semibold text-[15px] leading-snug ${
-                task.completed ? 'line-through text-[#A99C8D]' : 'text-[#2C2724]'
-              }`}
-            >
+            <p className="font-fredoka font-semibold text-[15px] leading-snug text-[#2C2724]">
               {task.name}
             </p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">

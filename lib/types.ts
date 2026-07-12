@@ -100,6 +100,7 @@ export interface Task {
   jobTitle?: string;     // Applications only
   activityDate?: string; // YYYY-MM-DD — when the task was done
   ats?: string;          // ATS system key from ATS_CONFIG, applications only
+  platform?: string;     // Where the listing was found, applications only
 }
 
 export interface CustomActivity {

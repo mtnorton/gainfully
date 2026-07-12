@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fredoka, Nunito } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import BottomNav from "@/components/BottomNav";
 
 const fredoka = Fredoka({
   variable: "--font-fredoka",
@@ -37,7 +38,10 @@ export default function RootLayout({
         gtag('js', new Date());
         gtag('config', 'G-CHJDLB2218');
       `}</Script>
-      <body className="min-h-full bg-[#FFF6EC] text-[#2C2724]">{children}</body>
+      <body className="min-h-full bg-[#FFF6EC] text-[#2C2724] pb-24">
+        {children}
+        <BottomNav />
+      </body>
     </html>
   );
 }
