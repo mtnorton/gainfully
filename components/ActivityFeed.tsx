@@ -30,7 +30,7 @@ export default function ActivityFeed({ outcomes, tasks }: ActivityFeedProps) {
     <div className="space-y-2">
       {sorted.map((outcome) => {
         const config = OUTCOME_CONFIG[outcome.type];
-        const task = taskMap.get(outcome.taskId);
+        const task = outcome.taskId ? taskMap.get(outcome.taskId) : undefined;
         const dateStr = new Date(outcome.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',

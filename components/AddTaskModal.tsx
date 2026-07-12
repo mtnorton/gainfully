@@ -1,15 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { Task, TaskCategory, CATEGORY_CONFIG, CustomActivity, ATS_CONFIG } from '@/lib/types';
+import { Application, Task, TaskCategory, CATEGORY_CONFIG, CustomActivity, ATS_CONFIG } from '@/lib/types';
 import { BUILT_IN_ACTIVITIES } from '@/lib/builtInActivities';
 
 type TaskData = Omit<Task, 'id' | 'completed' | 'createdAt'>;
+type AppData  = Omit<Application, 'id' | 'createdAt'>;
+
+// Activities that create a new Application record
+const SUBMISSION_ACTIVITIES = new Set([
+  'Submit a tailored application',
+  'Spray and pray (mass apply)',
+]);
 
 interface AddTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogNow: (task: TaskData) => void;
+  onLogNow: (task: TaskData, application?: AppData) => void;
+  applications: Application[];
   customActivities: CustomActivity[];
   xpOverrides: Record<string, number>;
   onManageActivities: () => void;
@@ -25,6 +33,7 @@ const SECTION_GROUPS: {
     labelColor: '#2563EB',
     sections: [
       { category: 'application', emoji: '📋', label: 'Application' },
+      { category: 'recruiter',   emoji: '📞', label: 'Recruiter' },
       { category: 'networking',  emoji: '🤝', label: 'Networking' },
     ],
   },
@@ -49,6 +58,7 @@ const SECTION_GROUPS: {
 
 const CATEGORY_COMPANY: Record<TaskCategory, { label: string; placeholder: string } | null> = {
   application: { label: 'Company / Person', placeholder: 'Company name or contact' },
+  recruiter:   { label: 'Recruiter / Firm', placeholder: 'Recruiter name or firm' },
   networking:  { label: 'Company / Person', placeholder: 'Company name or contact' },
   preparation: { label: 'Company', placeholder: 'Company (optional)' },
   research:    { label: 'Company', placeholder: 'Company (optional)' },
@@ -59,15 +69,8 @@ const CATEGORY_COMPANY: Record<TaskCategory, { label: string; placeholder: strin
 };
 
 const APPLICATION_PLATFORMS = [
-  'LinkedIn',
-  'Indeed',
-  'WellFound',
-  'Glassdoor',
-  'Built In',
-  'Company Website',
-  'Recruiter Outreach',
-  'Referral',
-  'Other',
+  'LinkedIn', 'Indeed', 'WellFound', 'Glassdoor', 'Built In',
+  'Company Website', 'Recruiter Outreach', 'Referral', 'Other',
 ];
 
 const inputClass = 'w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] placeholder-[#C4B5A5] outline-none transition-colors text-sm';
@@ -77,6 +80,7 @@ export default function AddTaskModal({
   isOpen,
   onClose,
   onLogNow,
+  applications,
   customActivities,
   xpOverrides,
   onManageActivities,
@@ -85,16 +89,28 @@ export default function AddTaskModal({
     () => new Set<TaskCategory>()
   );
   const [category, setCategory] = useState<TaskCategory>('application');
-  const [name, setName] = useState('');
-  const [xp, setXP] = useState(CATEGORY_CONFIG['application'].defaultXP);
-  const [company, setCompany] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
+  const [name, setName]         = useState('');
+  const [xp, setXP]             = useState(CATEGORY_CONFIG['application'].defaultXP);
+
+  // Shared fields
+  const [company, setCompany]           = useState('');
   const [activityDate, setActivityDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [ats, setAts] = useState('');
-  const [platform, setPlatform] = useState('');
+  const [ats, setAts]                   = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Submission-only Application fields
+  const [jobTitle, setJobTitle] = useState('');
+  const [url, setUrl]           = useState('');
+  const [platform, setPlatform] = useState('');
+
+  // Follow-up link to existing application
+  const [linkedAppId, setLinkedAppId] = useState('');
+
   if (!isOpen) return null;
+
+  const isSubmission  = SUBMISSION_ACTIVITIES.has(name);
+  const isAppCategory = category === 'application';
+  const companyConfig = isAppCategory ? null : CATEGORY_COMPANY[category]; // app category handled separately
 
   const toggleCategory = (cat: TaskCategory) => {
     setExpandedCategories((prev) => {
@@ -105,24 +121,22 @@ export default function AddTaskModal({
     });
   };
 
-  const getChipsForCategory = (cat: TaskCategory): { name: string; xp: number; category: TaskCategory }[] => [
+  const getChipsForCategory = (cat: TaskCategory) => [
     ...(BUILT_IN_ACTIVITIES[cat] ?? []).map((a) => ({
-      name: a.name,
-      xp: xpOverrides[a.name] ?? a.xp,
-      category: cat,
+      name: a.name, xp: xpOverrides[a.name] ?? a.xp, category: cat,
     })),
-    ...customActivities
-      .filter((a) => a.category === cat)
-      .map((a) => ({ name: a.name, xp: a.xp, category: cat })),
+    ...customActivities.filter((a) => a.category === cat).map((a) => ({
+      name: a.name, xp: a.xp, category: cat,
+    })),
   ];
 
   const allChipsFlat = SECTION_GROUPS.flatMap((g) =>
     g.sections.flatMap((s) => getChipsForCategory(s.category))
   );
   const selectedChip = allChipsFlat.find((c) => c.name === name);
-  const showXPInput = name.trim().length > 0 && !selectedChip;
-  const atsBonusXP = ats && ATS_CONFIG[ats] ? ATS_CONFIG[ats].bonusXP : 0;
-  const companyConfig = CATEGORY_COMPANY[category];
+  const showXPInput  = name.trim().length > 0 && !selectedChip;
+  const atsBonusXP   = ats && ATS_CONFIG[ats] ? ATS_CONFIG[ats].bonusXP : 0;
+  const displayXP    = (selectedChip ? selectedChip.xp : xp) + atsBonusXP;
 
   const selectChip = (chip: { name: string; xp: number; category: TaskCategory }) => {
     setName(chip.name);
@@ -130,37 +144,65 @@ export default function AddTaskModal({
     setCategory(chip.category);
     setAts('');
     setShowAdvanced(false);
+    setLinkedAppId('');
   };
 
-  const buildTaskData = (): TaskData => ({
-    name: name.trim(),
-    category,
-    xp: xp + atsBonusXP,
-    company: company.trim() || undefined,
-    jobTitle: category === 'application' && jobTitle.trim() ? jobTitle.trim() : undefined,
-    activityDate: activityDate || undefined,
-    ats: ats || undefined,
-    platform: category === 'application' && platform ? platform : undefined,
-  });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    const totalXP = (selectedChip ? selectedChip.xp : xp) + atsBonusXP;
+
+    if (isSubmission) {
+      // Create a new Application + Task linked to it
+      const appData: AppData = {
+        company:     company.trim() || 'Unknown Company',
+        jobTitle:    jobTitle.trim() || undefined,
+        url:         url.trim()     || undefined,
+        platform:    platform       || undefined,
+        dateApplied: activityDate   || undefined,
+      };
+      onLogNow(
+        { name: name.trim(), category, xp: totalXP, activityDate: activityDate || undefined, ats: ats || undefined },
+        appData,
+      );
+    } else if (isAppCategory && linkedAppId) {
+      // Follow-up linked to an existing application
+      onLogNow({
+        name: name.trim(), category, xp: totalXP,
+        applicationId: linkedAppId,
+        activityDate:  activityDate || undefined,
+      });
+    } else {
+      // Regular task (all other categories, or unlinked app follow-up)
+      const companyVal = isAppCategory ? (company.trim() || undefined) : (company.trim() || undefined);
+      onLogNow({
+        name:         name.trim(),
+        category,
+        xp:           totalXP,
+        company:      companyVal,
+        activityDate: activityDate || undefined,
+        ats:          ats          || undefined,
+        platform:     !isAppCategory && CATEGORY_COMPANY[category] === null ? undefined : (platform || undefined),
+      });
+    }
+
+    resetForm();
+  };
 
   const resetForm = () => {
     setCategory('application');
     setName('');
     setCompany('');
     setJobTitle('');
+    setUrl('');
     setActivityDate(new Date().toISOString().split('T')[0]);
     setXP(CATEGORY_CONFIG['application'].defaultXP);
     setAts('');
     setPlatform('');
+    setLinkedAppId('');
     setShowAdvanced(false);
     onClose();
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onLogNow(buildTaskData());
-    resetForm();
   };
 
   return (
@@ -191,9 +233,9 @@ export default function AddTaskModal({
                 </p>
                 <div className="space-y-0.5">
                   {group.sections.map((section) => {
-                    const chips = getChipsForCategory(section.category);
+                    const chips      = getChipsForCategory(section.category);
                     const isExpanded = expandedCategories.has(section.category);
-                    const cfg = CATEGORY_CONFIG[section.category];
+                    const cfg        = CATEGORY_CONFIG[section.category];
                     return (
                       <div key={section.category}>
                         <button
@@ -203,9 +245,7 @@ export default function AddTaskModal({
                         >
                           <span className="text-base leading-none">{section.emoji}</span>
                           <span className="text-sm font-semibold">{section.label}</span>
-                          <span className="ml-auto text-[10px] opacity-50">
-                            {isExpanded ? '▾' : '▸'}
-                          </span>
+                          <span className="ml-auto text-[10px] opacity-50">{isExpanded ? '▾' : '▸'}</span>
                         </button>
                         {isExpanded && chips.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1 pb-2 pl-1">
@@ -231,7 +271,6 @@ export default function AddTaskModal({
                 </div>
               </div>
             ))}
-
             <div className="flex justify-end pt-1">
               <button
                 type="button"
@@ -256,7 +295,7 @@ export default function AddTaskModal({
             />
           </div>
 
-          {/* XP + category picker — free-form only */}
+          {/* XP + category — free-form only */}
           {showXPInput && (
             <div className="space-y-2.5">
               <div className="flex items-center gap-3">
@@ -267,7 +306,7 @@ export default function AddTaskModal({
                   max={500}
                   value={xp}
                   onChange={(e) => setXP(Math.max(1, Number(e.target.value)))}
-                  className="w-24 rounded-xl px-3 py-2 text-[#F5A300] font-bold text-sm outline-none transition-colors bg-white"
+                  className="w-24 rounded-xl px-3 py-2 text-[#F5A300] font-bold text-sm outline-none bg-white"
                   style={inputStyle}
                 />
               </div>
@@ -292,96 +331,82 @@ export default function AddTaskModal({
             </div>
           )}
 
-          {/* Company + Date */}
-          {companyConfig ? (
-            <div className="grid grid-cols-2 gap-3">
+          {/* ── Submission: Application Details ── */}
+          {isSubmission && (
+            <div className="space-y-3 rounded-xl p-3" style={{ background: '#F7F2FF', border: '1.5px solid #E2D4FF' }}>
+              <p className="font-fredoka font-bold text-[11px] text-[#7C5CFC] uppercase tracking-widest">Application Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
+                    Company <span className="text-[#FF6B4A]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="Company name"
+                    required
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Job Title</label>
+                  <input
+                    type="text"
+                    value={jobTitle}
+                    onChange={(e) => setJobTitle(e.target.value)}
+                    placeholder="e.g. Product Designer"
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
-                  {companyConfig.label}
+                  Job URL <span className="text-[#A99C8D] font-normal">(optional)</span>
                 </label>
                 <input
-                  type="text"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  placeholder={companyConfig.placeholder}
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://..."
                   className={inputClass}
                   style={inputStyle}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Found on</label>
+                  <select value={platform} onChange={(e) => setPlatform(e.target.value)} className={inputClass} style={inputStyle}>
+                    <option value="">Select…</option>
+                    {APPLICATION_PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date applied</label>
+                  <input
+                    type="date"
+                    value={activityDate}
+                    onChange={(e) => setActivityDate(e.target.value)}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              {/* ATS bonus */}
               <div>
-                <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
-                <input
-                  type="date"
-                  value={activityDate}
-                  onChange={(e) => setActivityDate(e.target.value)}
-                  className={inputClass}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
-              <input
-                type="date"
-                value={activityDate}
-                onChange={(e) => setActivityDate(e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-          )}
-
-          {/* Advanced Logging — application only */}
-          {category === 'application' && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowAdvanced((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-[#97887A] hover:text-[#2C2724] transition-colors font-semibold"
-              >
-                <span>{showAdvanced ? '▾' : '▸'}</span>
-                Advanced Logging
-              </button>
-
-              {showAdvanced && (
-                <div className="mt-3 space-y-4">
-                  <div>
-                    <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
-                      Job title <span className="text-[#A99C8D] font-normal">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      placeholder="e.g. Senior Product Designer"
-                      className={inputClass}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
-                      Where did you find it? <span className="text-[#A99C8D] font-normal">(optional)</span>
-                    </label>
-                    <select
-                      value={platform}
-                      onChange={(e) => setPlatform(e.target.value)}
-                      className={inputClass}
-                      style={inputStyle}
-                    >
-                      <option value="">Select platform…</option>
-                      {APPLICATION_PLATFORMS.map((p) => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
-                      Painful portal?{' '}
-                      <span className="text-[#A99C8D] font-normal">earns bonus XP for your suffering</span>
-                    </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs text-[#97887A] hover:text-[#2C2724] transition-colors font-semibold"
+                >
+                  <span>{showAdvanced ? '▾' : '▸'}</span>
+                  Painful portal? (bonus XP)
+                </button>
+                {showAdvanced && (
+                  <div className="mt-2 space-y-2">
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(ATS_CONFIG).map(([key, cfg]) => {
                         const selected = ats === key;
@@ -393,8 +418,7 @@ export default function AddTaskModal({
                             className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
                             style={selected
                               ? { background: '#FFE6D3', border: '2px solid #F9C9A3', color: '#EA580C' }
-                              : { background: '#F2E8DB', border: '2px solid #EFE0CC', color: '#6f6155' }
-                            }
+                              : { background: '#F2E8DB', border: '2px solid #EFE0CC', color: '#6f6155' }}
                           >
                             <span>{cfg.icon}</span>
                             <span>{cfg.label}</span>
@@ -404,14 +428,116 @@ export default function AddTaskModal({
                       })}
                     </div>
                     {ats && ATS_CONFIG[ats] && (
-                      <p className="text-[#A99C8D] text-xs mt-2 italic">
-                        &ldquo;{ATS_CONFIG[ats].quip}&rdquo;
-                      </p>
+                      <p className="text-[#A99C8D] text-xs italic">&ldquo;{ATS_CONFIG[ats].quip}&rdquo;</p>
                     )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Follow-up: link to existing application ── */}
+          {!isSubmission && isAppCategory && (
+            <>
+              {applications.length > 0 && (
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
+                    Link to application <span className="text-[#A99C8D] font-normal">(optional)</span>
+                  </label>
+                  <select
+                    value={linkedAppId}
+                    onChange={(e) => setLinkedAppId(e.target.value)}
+                    className={inputClass}
+                    style={inputStyle}
+                  >
+                    <option value="">Not linked to a specific application</option>
+                    {applications.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.company}{a.jobTitle ? ` — ${a.jobTitle}` : ''}{a.dateApplied ? ` (${a.dateApplied})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Company field only if not linked */}
+              {!linkedAppId && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Company / Contact</label>
+                    <input
+                      type="text"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      placeholder="Company or recruiter name"
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
+                    <input
+                      type="date"
+                      value={activityDate}
+                      onChange={(e) => setActivityDate(e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
                   </div>
                 </div>
               )}
-            </div>
+              {linkedAppId && (
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
+                  <input
+                    type="date"
+                    value={activityDate}
+                    onChange={(e) => setActivityDate(e.target.value)}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Non-application categories: company + date ── */}
+          {!isSubmission && !isAppCategory && (
+            companyConfig ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">{companyConfig.label}</label>
+                  <input
+                    type="text"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder={companyConfig.placeholder}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
+                  <input
+                    type="date"
+                    value={activityDate}
+                    onChange={(e) => setActivityDate(e.target.value)}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[#6f6155] text-sm font-bold mb-1.5">Date</label>
+                <input
+                  type="date"
+                  value={activityDate}
+                  onChange={(e) => setActivityDate(e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+              </div>
+            )
           )}
 
           <div className="flex gap-2 pt-1">
@@ -425,11 +551,11 @@ export default function AddTaskModal({
             </button>
             <button
               type="submit"
-              disabled={!name.trim()}
+              disabled={!name.trim() || (isSubmission && !company.trim())}
               className="flex-1 py-2.5 rounded-xl text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-fredoka"
               style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
             >
-              Log Now (+{(selectedChip ? selectedChip.xp : xp) + atsBonusXP} XP)
+              Log Now (+{displayXP} XP)
             </button>
           </div>
         </form>

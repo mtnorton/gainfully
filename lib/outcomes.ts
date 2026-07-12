@@ -35,7 +35,8 @@ export interface OutcomeConfig {
 
 export interface Outcome {
   id: string;
-  taskId: string;
+  taskId?: string;        // legacy — prefer applicationId for new outcomes
+  applicationId?: string; // links to Application entity
   type: OutcomeType;
   date: string;
   notes?: string;

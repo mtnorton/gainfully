@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
   );
   const { data: { user }, error: authError } = await verifier.auth.getUser(token);
   if (authError || !user || user.id !== process.env.ADMIN_USER_ID) {
+    console.error('[admin] auth fail — authError:', authError?.message, '| user:', user?.id, '| expected:', process.env.ADMIN_USER_ID ? 'set' : 'MISSING');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

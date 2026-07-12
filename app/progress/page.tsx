@@ -98,7 +98,7 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const CAT_ORDER: TaskCategory[] = ['application', 'networking', 'preparation', 'research', 'skills', 'selfcare', 'hustle', 'custom'];
+const CAT_ORDER: TaskCategory[] = ['application', 'recruiter', 'networking', 'preparation', 'research', 'skills', 'selfcare', 'hustle', 'custom'];
 const OUTCOME_ORDER: OutcomeType[] = ['offer', 'second_interview', 'interview', 'referral', 'response', 'rejection', 'ghosted', 'position_closed', 'other', 'standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'];
 
 function buildShareText(summary: WeekSummary, level: number, totalXP: number, isThisWeek: boolean): string {

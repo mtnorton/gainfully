@@ -303,7 +303,7 @@ export function checkForNewBadgesOnOutcome(
     .map((b) => ({ ...b, earned: true, earnedAt: new Date().toISOString() }));
 }
 
-const MAIN_CATEGORIES: TaskCategory[] = ['application', 'networking', 'preparation', 'research', 'selfcare'];
+const MAIN_CATEGORIES: TaskCategory[] = ['application', 'recruiter', 'networking', 'preparation', 'research', 'selfcare'];
 
 // Tasks logged by pure-luck games that shouldn't inflate task-volume or category badge counts
 export const GAME_ONLY_TASK_NAMES = new Set(['Shot in the Dark', 'See What Sticks']);

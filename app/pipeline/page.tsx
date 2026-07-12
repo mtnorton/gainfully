@@ -9,7 +9,7 @@ import { getLevelProgress } from '@/lib/gameLogic';
 import TaskDetailModal from '@/components/TaskDetailModal';
 import { loadState, saveState } from '@/lib/supabase/storage';
 
-const PIPELINE_CATEGORIES: TaskCategory[] = ['application', 'networking', 'preparation', 'research'];
+const PIPELINE_CATEGORIES: TaskCategory[] = ['application', 'recruiter', 'networking', 'preparation', 'research'];
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'no-result';
 type CategoryFilter = TaskCategory | 'all';
@@ -115,7 +115,7 @@ export default function PipelinePage() {
         : null;
     const mightBeGhosted =
       task.completed && daysSince !== null && daysSince >= 14 &&
-      ['application', 'networking'].includes(task.category) &&
+      ['application', 'recruiter', 'networking'].includes(task.category) &&
       taskOutcomes.length === 0;
     const outcomesXP = taskOutcomes.reduce((sum, o) => sum + (o.xpAwarded ?? 0), 0);
     return { task, taskOutcomes, latest, daysSince, mightBeGhosted, outcomesXP };

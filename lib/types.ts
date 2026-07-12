@@ -1,4 +1,4 @@
-export type TaskCategory = 'application' | 'networking' | 'preparation' | 'research' | 'skills' | 'selfcare' | 'hustle' | 'custom';
+export type TaskCategory = 'application' | 'networking' | 'recruiter' | 'preparation' | 'research' | 'skills' | 'selfcare' | 'hustle' | 'custom';
 
 export const CATEGORY_CONFIG: Record<
   TaskCategory,
@@ -15,6 +15,12 @@ export const CATEGORY_CONFIG: Record<
     icon: '🤝',
     defaultXP: 20,
     colorClasses: 'bg-[#FBEFC9] text-[#B45309] border-[#F3D88E]',
+  },
+  recruiter: {
+    label: 'Recruiter',
+    icon: '📞',
+    defaultXP: 20,
+    colorClasses: 'bg-[#FFF1F2] text-[#E11D48] border-[#FECDD3]',
   },
   preparation: {
     label: 'Preparation',
@@ -87,6 +93,17 @@ export const ATS_CONFIG: Record<string, { label: string; bonusXP: number; quip: 
   },
 };
 
+export interface Application {
+  id: string;
+  company: string;
+  jobTitle?: string;
+  url?: string;
+  platform?: string;
+  dateApplied?: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   name: string;
@@ -95,12 +112,13 @@ export interface Task {
   completed: boolean;
   completedAt?: string;
   createdAt: string;
-  // Identifying details
-  company?: string;      // Company name or person's name (for networking)
-  jobTitle?: string;     // Applications only
-  activityDate?: string; // YYYY-MM-DD — when the task was done
-  ats?: string;          // ATS system key from ATS_CONFIG, applications only
-  platform?: string;     // Where the listing was found, applications only
+  applicationId?: string; // links to Application entity
+  // Identifying details (non-application tasks, or legacy tasks pre-Application refactor)
+  company?: string;
+  jobTitle?: string;  // legacy — new submissions store this on Application
+  activityDate?: string;
+  ats?: string;
+  platform?: string;
 }
 
 export interface CustomActivity {

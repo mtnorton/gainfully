@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import { Task, TaskCategory, CustomActivity, Badge } from '@/lib/types';
+import { Application, Task, TaskCategory, CustomActivity, Badge } from '@/lib/types';
 import { Outcome, OutcomeType } from '@/lib/outcomes';
 import { getInitialBadges } from '@/lib/gameLogic';
 
@@ -26,7 +26,8 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   if (!session) return null;
   const userId = session.user.id;
 
-  const [tasksRes, outcomesRes, badgesRes, activitiesRes, settingsRes] = await Promise.all([
+  const [appsRes, tasksRes, outcomesRes, badgesRes, activitiesRes, settingsRes] = await Promise.all([
+    supabase.from('applications').select('*').eq('user_id', userId).eq('archived', false),
     supabase.from('tasks').select('*').eq('user_id', userId).eq('archived', false),
     supabase.from('outcomes').select('*').eq('user_id', userId).eq('archived', false),
     supabase.from('user_badges').select('*').eq('user_id', userId).eq('archived', false),
@@ -34,6 +35,7 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
     supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
   ]);
 
+  if (appsRes.error)       console.error('[gainfully] loadState applications:', appsRes.error);
   if (tasksRes.error)      console.error('[gainfully] loadState tasks:', tasksRes.error);
   if (outcomesRes.error)   console.error('[gainfully] loadState outcomes:', outcomesRes.error);
   if (badgesRes.error)     console.error('[gainfully] loadState badges:', badgesRes.error);
@@ -41,30 +43,44 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   if (settingsRes.error)   console.error('[gainfully] loadState settings:', settingsRes.error);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applications: Application[] = (appsRes.data ?? []).map((r: any) => ({
+    id:          r.id,
+    company:     r.company,
+    jobTitle:    r.job_title    ?? undefined,
+    url:         r.url          ?? undefined,
+    platform:    r.platform     ?? undefined,
+    dateApplied: r.date_applied ?? undefined,
+    notes:       r.notes        ?? undefined,
+    createdAt:   r.created_at,
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tasks: Task[] = (tasksRes.data ?? []).map((r: any) => ({
-    id:           r.id,
-    name:         r.name,
-    category:     r.category as TaskCategory,
-    xp:           r.xp,
-    completed:    r.completed,
-    completedAt:  r.completed_at   ?? undefined,
-    createdAt:    r.created_at,
-    company:      r.company        ?? undefined,
-    jobTitle:     r.job_title      ?? undefined,
-    activityDate: r.activity_date  ?? undefined,
-    ats:          r.ats            ?? undefined,
-    platform:     r.platform       ?? undefined,
+    id:            r.id,
+    name:          r.name,
+    category:      r.category as TaskCategory,
+    xp:            r.xp,
+    completed:     r.completed,
+    completedAt:   r.completed_at    ?? undefined,
+    createdAt:     r.created_at,
+    applicationId: r.application_id  ?? undefined,
+    company:       r.company         ?? undefined,
+    jobTitle:      r.job_title       ?? undefined,
+    activityDate:  r.activity_date   ?? undefined,
+    ats:           r.ats             ?? undefined,
+    platform:      r.platform        ?? undefined,
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const outcomes: Outcome[] = (outcomesRes.data ?? []).map((r: any) => ({
-    id:         r.id,
-    taskId:     r.task_id,
-    type:       r.type as OutcomeType,
-    date:       r.date,
-    notes:      r.notes      ?? undefined,
-    xpAwarded:  r.xp_awarded,
-    createdAt:  r.created_at,
+    id:            r.id,
+    taskId:        r.task_id        ?? undefined,
+    applicationId: r.application_id ?? undefined,
+    type:          r.type as OutcomeType,
+    date:          r.date,
+    notes:         r.notes          ?? undefined,
+    xpAwarded:     r.xp_awarded,
+    createdAt:     r.created_at,
   }));
 
   const earnedMap = new Map<string, string>(
@@ -95,7 +111,7 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
     outcomes.reduce((s, o) => s + o.xpAwarded, 0) +
     retainedXP;
 
-  return { tasks, outcomes, totalXP, badges, customActivities, xpOverrides, freezeTokens, frozenDates };
+  return { applications, tasks, outcomes, totalXP, badges, customActivities, xpOverrides, freezeTokens, frozenDates };
 }
 
 // ── consent ───────────────────────────────────────────────────────────────────
@@ -201,6 +217,7 @@ export async function saveState(state: unknown): Promise<void> {
   const userId = session.user.id;
 
   const s = state as {
+    applications?:     Application[];
     tasks?:            Task[];
     outcomes?:         Outcome[];
     badges?:           Badge[];
@@ -208,6 +225,7 @@ export async function saveState(state: unknown): Promise<void> {
     xpOverrides?:      Record<string, number>;
   };
 
+  const applications     = s.applications     ?? [];
   const tasks            = s.tasks            ?? [];
   const outcomes         = s.outcomes         ?? [];
   const badges           = s.badges           ?? [];
@@ -241,22 +259,40 @@ export async function saveState(state: unknown): Promise<void> {
 
   await Promise.all([
     syncTable(
+      'applications',
+      applications.map((a) => a.id),
+      applications.map((a) => ({
+        id:           a.id,
+        user_id:      userId,
+        company:      a.company,
+        job_title:    a.jobTitle    ?? null,
+        url:          a.url         ?? null,
+        platform:     a.platform    ?? null,
+        date_applied: a.dateApplied ?? null,
+        notes:        a.notes       ?? null,
+        created_at:   a.createdAt,
+        updated_at:   new Date().toISOString(),
+      })),
+    ),
+
+    syncTable(
       'tasks',
       tasks.map((t) => t.id),
       tasks.map((t) => ({
-        id:            t.id,
-        user_id:       userId,
-        name:          t.name,
-        category:      t.category,
-        xp:            t.xp,
-        completed:     t.completed,
-        completed_at:  t.completedAt   ?? null,
-        created_at:    t.createdAt,
-        company:       t.company       ?? null,
-        job_title:     t.jobTitle      ?? null,
-        activity_date: t.activityDate  ?? null,
-        ats:           t.ats           ?? null,
-        platform:      t.platform      ?? null,
+        id:             t.id,
+        user_id:        userId,
+        name:           t.name,
+        category:       t.category,
+        xp:             t.xp,
+        completed:      t.completed,
+        completed_at:   t.completedAt    ?? null,
+        created_at:     t.createdAt,
+        application_id: t.applicationId  ?? null,
+        company:        t.company        ?? null,
+        job_title:      t.jobTitle       ?? null,
+        activity_date:  t.activityDate   ?? null,
+        ats:            t.ats            ?? null,
+        platform:       t.platform       ?? null,
       })),
     ),
 
@@ -264,14 +300,15 @@ export async function saveState(state: unknown): Promise<void> {
       'outcomes',
       outcomes.map((o) => o.id),
       outcomes.map((o) => ({
-        id:         o.id,
-        user_id:    userId,
-        task_id:    o.taskId,
-        type:       o.type,
-        date:       o.date,
-        notes:      o.notes      ?? null,
-        xp_awarded: o.xpAwarded,
-        created_at: o.createdAt,
+        id:             o.id,
+        user_id:        userId,
+        task_id:        o.taskId        ?? null,
+        application_id: o.applicationId ?? null,
+        type:           o.type,
+        date:           o.date,
+        notes:          o.notes         ?? null,
+        xp_awarded:     o.xpAwarded,
+        created_at:     o.createdAt,
       })),
     ),
 
@@ -337,6 +374,7 @@ export async function archiveSearch(keepXP: boolean): Promise<void> {
     retainedXP = ((settingsRes.data?.retained_xp ?? 0) as number) + taskXP + outcomeXP;
   }
 
+  await supabase.from('applications').update({ archived: true }).eq('user_id', userId).eq('archived', false);
   await supabase.from('tasks').update({ archived: true }).eq('user_id', userId).eq('archived', false);
   await supabase.from('outcomes').update({ archived: true }).eq('user_id', userId).eq('archived', false);
   if (!keepXP) {

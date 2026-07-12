@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Task, CATEGORY_CONFIG } from '@/lib/types';
+import { Application, Task, CATEGORY_CONFIG } from '@/lib/types';
 import { OutcomeType, OUTCOME_CONFIG } from '@/lib/outcomes';
 import { GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
 
 interface LogOutcomeModalProps {
   isOpen: boolean;
   preselectedTask: Task | null;
+  preselectedApplication: Application | null;
   completedTasks: Task[];
+  applications: Application[];
   onClose: () => void;
-  onLog: (taskId: string, type: OutcomeType, date: string, notes: string) => void;
+  onLog: (applicationId: string | null, taskId: string | null, type: OutcomeType, date: string, notes: string) => void;
 }
 
 type OutcomeGroup = { label: string; types: OutcomeType[] };
@@ -20,8 +22,14 @@ const NETWORKING_GROUPS: OutcomeGroup[] = [
   { label: 'No response', types: ['ghosted', 'other'] },
 ];
 
+const RECRUITER_GROUPS: OutcomeGroup[] = [
+  { label: 'Recruiter wins', types: ['response', 'coffee_chat', 'referral', 'intro_made'] },
+  { label: 'No response', types: ['ghosted', 'other'] },
+  { label: 'Recruiter nonsense', types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'] },
+];
+
 const APPLICATION_GROUPS: OutcomeGroup[] = [
-  { label: 'Positive news', types: ['interview', 'technical_screening', 'technical_interview', 'second_interview', 'offer', 'response', 'referral'] },
+  { label: 'Positive news', types: ['interview', 'technical_screening', 'technical_interview', 'second_interview', 'reference_check', 'offer', 'accepted_offer'] },
   { label: 'Tough but normal', types: ['rejection', 'ghosted', 'position_closed', 'other'] },
   { label: 'Recruiter nonsense', types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'] },
 ];
@@ -32,42 +40,69 @@ const DEFAULT_GROUPS: OutcomeGroup[] = [
 ];
 
 function groupsFor(category?: string): OutcomeGroup[] {
-  if (category === 'networking') return NETWORKING_GROUPS;
+  if (category === 'recruiter')   return RECRUITER_GROUPS;
+  if (category === 'networking')  return NETWORKING_GROUPS;
   if (category === 'application') return APPLICATION_GROUPS;
   return DEFAULT_GROUPS;
 }
 
 const NOTES_PLACEHOLDERS: Partial<Record<OutcomeType, string>> = {
   rejection: 'Any feedback you received?',
-  ghosted: 'How long since your last contact?',
+  ghosted:   'How long since your last contact?',
   interview: 'Details about the interview?',
-  offer: 'Role, company, any notes?',
+  offer:     'Role, company, any notes?',
 };
 
 export default function LogOutcomeModal({
   isOpen,
   preselectedTask,
+  preselectedApplication,
   completedTasks,
+  applications,
   onClose,
   onLog,
 }: LogOutcomeModalProps) {
-  const [pickedTaskId, setPickedTaskId] = useState('');
-  const [selectedType, setSelectedType] = useState<OutcomeType | null>(null);
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
+  const [pickedApplicationId, setPickedApplicationId] = useState('');
+  const [pickedTaskId, setPickedTaskId]               = useState('');
+  const [selectedType, setSelectedType]               = useState<OutcomeType | null>(null);
+  const [date, setDate]                               = useState(() => new Date().toISOString().split('T')[0]);
+  const [notes, setNotes]                             = useState('');
 
   if (!isOpen) return null;
 
-  const activeTask =
-    preselectedTask ?? completedTasks.find((t) => t.id === pickedTaskId) ?? null;
+  // Resolve active entity — application takes priority
+  const activeApplication: Application | null =
+    preselectedApplication ??
+    (pickedApplicationId ? applications.find((a) => a.id === pickedApplicationId) ?? null : null);
+
+  const activeTask: Task | null = activeApplication
+    ? null
+    : (preselectedTask ?? completedTasks.find((t) => t.id === pickedTaskId) ?? null);
+
+  const isActive = !!(activeApplication || activeTask);
+
+  const groups = activeApplication
+    ? APPLICATION_GROUPS
+    : groupsFor(activeTask?.category);
 
   const handleLog = () => {
-    if (!activeTask || !selectedType) return;
-    onLog(activeTask.id, selectedType, date, notes.trim());
+    if (!isActive || !selectedType) return;
+    onLog(
+      activeApplication?.id ?? null,
+      activeTask?.id         ?? null,
+      selectedType,
+      date,
+      notes.trim(),
+    );
   };
 
-  const placeholder =
-    selectedType ? (NOTES_PLACEHOLDERS[selectedType] ?? 'Any notes...') : 'Any notes...';
+  const placeholder = selectedType ? (NOTES_PLACEHOLDERS[selectedType] ?? 'Any notes...') : 'Any notes...';
+
+  // Determine what to show as the "subject" header
+  const showPreselectedApp  = !!preselectedApplication;
+  const showPreselectedTask = !preselectedApplication && !!preselectedTask;
+  const showAppPicker       = !preselectedApplication && !preselectedTask && applications.length > 0;
+  const showTaskPicker      = !preselectedApplication && !preselectedTask && applications.length === 0;
 
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4">
@@ -76,7 +111,6 @@ export default function LogOutcomeModal({
         className="relative z-10 w-full max-w-lg bg-white rounded-[22px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
         style={{ border: '2px solid #F1E2CF' }}
       >
-
         <div className="flex items-center justify-between mb-1">
           <h2 className="font-fredoka font-bold text-[20px] text-[#2C2724]">Log a Result</h2>
           <button
@@ -88,17 +122,33 @@ export default function LogOutcomeModal({
           </button>
         </div>
 
-        {/* Task — either shown as a label (preselected) or a picker */}
-        {preselectedTask ? (
+        {/* ── Preselected application ── */}
+        {showPreselectedApp && (
           <div className="mb-5">
-            <p className="text-[#6f6155] text-sm truncate font-semibold">{preselectedTask.name}</p>
-            {(preselectedTask.company || preselectedTask.jobTitle || preselectedTask.activityDate) && (
+            <p className="text-[#6f6155] text-sm font-semibold truncate">
+              {preselectedApplication!.company}
+              {preselectedApplication!.jobTitle && ` — ${preselectedApplication!.jobTitle}`}
+            </p>
+            {preselectedApplication!.dateApplied && (
+              <p className="text-[#A99C8D] text-xs mt-0.5">
+                Applied{' '}
+                {new Date(preselectedApplication!.dateApplied + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Preselected task (legacy / non-application) ── */}
+        {showPreselectedTask && (
+          <div className="mb-5">
+            <p className="text-[#6f6155] text-sm truncate font-semibold">{preselectedTask!.name}</p>
+            {(preselectedTask!.company || preselectedTask!.jobTitle || preselectedTask!.activityDate) && (
               <p className="text-[#A99C8D] text-xs mt-0.5">
                 {[
-                  preselectedTask.company,
-                  preselectedTask.jobTitle,
-                  preselectedTask.activityDate
-                    ? new Date(preselectedTask.activityDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  preselectedTask!.company,
+                  preselectedTask!.jobTitle,
+                  preselectedTask!.activityDate
+                    ? new Date(preselectedTask!.activityDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                     : null,
                 ]
                   .filter(Boolean)
@@ -106,7 +156,58 @@ export default function LogOutcomeModal({
               </p>
             )}
           </div>
-        ) : (
+        )}
+
+        {/* ── Application picker ── */}
+        {showAppPicker && (
+          <div className="mb-5">
+            <label className="block text-[#A99C8D] text-xs uppercase tracking-wider font-bold mb-2">
+              Which application?
+            </label>
+            <select
+              value={pickedApplicationId}
+              onChange={(e) => { setPickedApplicationId(e.target.value); setPickedTaskId(''); }}
+              className="w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] outline-none transition-colors text-sm"
+              style={{ border: '2px solid #F1E2CF' }}
+            >
+              <option value="">Select an application...</option>
+              {applications.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.company}{a.jobTitle ? ` — ${a.jobTitle}` : ''}{a.dateApplied ? ` (${a.dateApplied})` : ''}
+                </option>
+              ))}
+            </select>
+            {/* Task fallback for non-application results */}
+            {completedTasks.filter((t) => !GAME_ONLY_TASK_NAMES.has(t.name)).length > 0 && !pickedApplicationId && (
+              <div className="mt-3">
+                <label className="block text-[#A99C8D] text-xs uppercase tracking-wider font-bold mb-2">
+                  Or link to a specific task
+                </label>
+                <select
+                  value={pickedTaskId}
+                  onChange={(e) => setPickedTaskId(e.target.value)}
+                  className="w-full bg-white rounded-xl px-4 py-2.5 text-[#2C2724] outline-none transition-colors text-sm"
+                  style={{ border: '2px solid #F1E2CF' }}
+                >
+                  <option value="">Select a task...</option>
+                  {completedTasks.filter((t) => !GAME_ONLY_TASK_NAMES.has(t.name)).map((t) => {
+                    const detail = [t.company, t.jobTitle, t.activityDate
+                      ? new Date(t.activityDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : null].filter(Boolean).join(', ');
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {CATEGORY_CONFIG[t.category].icon} {t.name}{detail ? ` — ${detail}` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Task-only picker (no applications yet) ── */}
+        {showTaskPicker && (
           <div className="mb-5">
             <label className="block text-[#A99C8D] text-xs uppercase tracking-wider font-bold mb-2">
               Which task had a result?
@@ -124,15 +225,9 @@ export default function LogOutcomeModal({
               >
                 <option value="">Select a task...</option>
                 {completedTasks.filter((t) => !GAME_ONLY_TASK_NAMES.has(t.name)).map((t) => {
-                  const detail = [
-                    t.company,
-                    t.jobTitle,
-                    t.activityDate
-                      ? new Date(t.activityDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(', ');
+                  const detail = [t.company, t.jobTitle, t.activityDate
+                    ? new Date(t.activityDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    : null].filter(Boolean).join(', ');
                   return (
                     <option key={t.id} value={t.id}>
                       {CATEGORY_CONFIG[t.category].icon} {t.name}{detail ? ` — ${detail}` : ''}
@@ -144,16 +239,16 @@ export default function LogOutcomeModal({
           </div>
         )}
 
-        {/* Outcome type picker — dimmed until a task is selected */}
-        <div className={activeTask ? '' : 'opacity-40 pointer-events-none'}>
-          {groupsFor(activeTask?.category).map((group) => (
+        {/* ── Outcome type picker ── */}
+        <div className={isActive ? '' : 'opacity-40 pointer-events-none'}>
+          {groups.map((group) => (
             <div key={group.label} className="mb-4">
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
                 {group.label}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {group.types.map((type) => {
-                  const config = OUTCOME_CONFIG[type];
+                  const config     = OUTCOME_CONFIG[type];
                   const isSelected = selectedType === type;
                   return (
                     <button
@@ -196,8 +291,7 @@ export default function LogOutcomeModal({
               </div>
               <div>
                 <label className="block text-[#6f6155] text-sm font-bold mb-1.5">
-                  Notes{' '}
-                  <span className="text-[#A99C8D] font-normal">(optional)</span>
+                  Notes <span className="text-[#A99C8D] font-normal">(optional)</span>
                 </label>
                 <textarea
                   value={notes}
@@ -224,7 +318,7 @@ export default function LogOutcomeModal({
           </button>
           <button
             onClick={handleLog}
-            disabled={!activeTask || !selectedType}
+            disabled={!isActive || !selectedType}
             className="flex-1 py-2.5 rounded-xl text-white font-fredoka font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
             style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
           >

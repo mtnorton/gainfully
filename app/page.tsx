@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Task, Badge, CompletionEvent, CustomActivity, VictoryStats } from '@/lib/types';
+import { Application, Task, Badge, CompletionEvent, CustomActivity, VictoryStats } from '@/lib/types';
 import { Outcome, OutcomeResult, OutcomeType, OUTCOME_CONFIG, getOutcomeMessage } from '@/lib/outcomes';
 import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges, GAME_ONLY_TASK_NAMES, hadYesterdayGap, localDateStr } from '@/lib/gameLogic';
 import { getRandomEncouragement, getRandomCelebration } from '@/lib/encouragements';
@@ -45,6 +45,7 @@ function getSlotsBonus(taskName: string): number {
 }
 
 interface AppState {
+  applications: Application[];
   tasks: Task[];
   outcomes: Outcome[];
   totalXP: number;
@@ -54,7 +55,7 @@ interface AppState {
 }
 
 function buildDefaultState(): AppState {
-  return { tasks: [], outcomes: [], totalXP: 0, badges: getInitialBadges(), customActivities: [], xpOverrides: {} };
+  return { applications: [], tasks: [], outcomes: [], totalXP: 0, badges: getInitialBadges(), customActivities: [], xpOverrides: {} };
 }
 
 export default function Home() {
@@ -85,11 +86,12 @@ export default function Home() {
       const savedBadge = (parsed.badges ?? []).find((sb) => sb.id === b.id);
       return savedBadge ?? b;
     });
+    const applications = parsed.applications ?? [];
     const tasks = parsed.tasks ?? [];
     const outcomes = parsed.outcomes ?? [];
     const tokens = parsed.freezeTokens ?? 0;
     const frozen = parsed.frozenDates ?? [];
-    setState({ tasks, outcomes, totalXP: parsed.totalXP ?? 0, badges: mergedBadges, customActivities: parsed.customActivities ?? [], xpOverrides: parsed.xpOverrides ?? {} });
+    setState({ applications, tasks, outcomes, totalXP: parsed.totalXP ?? 0, badges: mergedBadges, customActivities: parsed.customActivities ?? [], xpOverrides: parsed.xpOverrides ?? {} });
     setFreezeTokens(tokens);
     setFrozenDates(frozen);
     if (tokens > 0 && hadYesterdayGap(tasks, outcomes, frozen)) setShowFreezeBanner(true);
@@ -156,12 +158,22 @@ export default function Home() {
   }, [state, mounted]);
 
   const handleLogNow = useCallback(
-    (taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>) => {
+    (taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>, newAppData?: Omit<Application, 'id' | 'createdAt'>) => {
       const slotsBonus = getSlotsBonus(taskData.name);
       const adjustedData = slotsBonus > 0 ? { ...taskData, xp: taskData.xp + slotsBonus } : taskData;
       setState((prev) => {
         const now = new Date().toISOString();
-        const newTask: Task = { ...adjustedData, id: generateId(), completed: true, completedAt: now, createdAt: now };
+
+        // Create a new Application record if provided
+        let applicationId = taskData.applicationId;
+        const newApplications = [...(prev.applications ?? [])];
+        if (newAppData) {
+          const newApp: Application = { ...newAppData, id: generateId(), createdAt: now };
+          newApplications.unshift(newApp);
+          applicationId = newApp.id;
+        }
+
+        const newTask: Task = { ...adjustedData, applicationId, id: generateId(), completed: true, completedAt: now, createdAt: now };
 
         const newTotalXP = prev.totalXP + newTask.xp;
         const oldLevel = getLevel(prev.totalXP);
@@ -199,9 +211,10 @@ export default function Home() {
           });
         }, 0);
 
-        return { ...prev, tasks: allTasks, totalXP: newTotalXP, badges: updatedBadges };
+        return { ...prev, applications: newApplications, tasks: allTasks, totalXP: newTotalXP, badges: updatedBadges };
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -295,15 +308,16 @@ export default function Home() {
   }, []);
 
   const handleLogOutcome = useCallback(
-    (taskId: string, type: OutcomeType, date: string, notes: string) => {
+    (applicationId: string | null, taskId: string | null, type: OutcomeType, date: string, notes: string) => {
       setState((prev) => {
         const config = OUTCOME_CONFIG[type];
         const newOutcome: Outcome = {
-          id: generateId(),
-          taskId,
+          id:            generateId(),
+          taskId:        taskId        ?? undefined,
+          applicationId: applicationId ?? undefined,
           type,
           date,
-          notes: notes || undefined,
+          notes:     notes || undefined,
           xpAwarded: config.xp,
           createdAt: new Date().toISOString(),
         };
@@ -335,7 +349,8 @@ export default function Home() {
 
         // Compute victory stats inside closure so we have access to prev
         const victoryData: VictoryStats | null = type === 'accepted_offer' ? (() => {
-          const task = prev.tasks.find((t) => t.id === taskId);
+          const application = applicationId ? prev.applications?.find((a) => a.id === applicationId) ?? null : null;
+          const task = taskId ? prev.tasks.find((t) => t.id === taskId) ?? null : null;
           const allDates = [
             ...prev.tasks.map((t) => t.createdAt),
             ...prev.outcomes.map((o) => o.createdAt),
@@ -346,7 +361,7 @@ export default function Home() {
           const interviewsLanded = [...prev.outcomes, newOutcome].filter((o) => interviewTypes.has(o.type)).length;
           const activitiesCompleted = prev.tasks.filter((t) => t.completed && !GAME_ONLY_TASK_NAMES.has(t.name)).length;
           return {
-            company: task?.company,
+            company: application?.company ?? task?.company,
             xpEarned: config.xp,
             totalXP: newTotalXP,
             weeksSearching,
@@ -435,6 +450,10 @@ export default function Home() {
   const preselectedTask =
     typeof logOutcomeTaskId === 'string'
       ? (state.tasks.find((t) => t.id === logOutcomeTaskId) ?? null)
+      : null;
+  const preselectedApplication =
+    preselectedTask?.applicationId
+      ? (state.applications?.find((a) => a.id === preselectedTask.applicationId) ?? null)
       : null;
 
   const taskOutcomes = (taskId: string) => state.outcomes.filter((o) => o.taskId === taskId);
@@ -579,6 +598,7 @@ export default function Home() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onLogNow={handleLogNow}
+        applications={state.applications ?? []}
         customActivities={state.customActivities}
         xpOverrides={state.xpOverrides}
         onManageActivities={() => { setIsAddModalOpen(false); setIsManageActivitiesOpen(true); }}
@@ -599,7 +619,9 @@ export default function Home() {
       <LogOutcomeModal
         isOpen={logOutcomeModalOpen}
         preselectedTask={preselectedTask}
+        preselectedApplication={preselectedApplication}
         completedTasks={completedTasks}
+        applications={state.applications ?? []}
         onClose={() => setLogOutcomeTaskId(null)}
         onLog={handleLogOutcome}
       />
