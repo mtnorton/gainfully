@@ -82,6 +82,16 @@ function buildUserDailySeries(
 }
 
 export async function GET(request: NextRequest) {
+  try {
+    return await handler(request);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[admin] unhandled exception:', msg, err);
+    return NextResponse.json({ error: 'Internal server error', detail: msg }, { status: 500 });
+  }
+}
+
+async function handler(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -176,3 +186,4 @@ export async function GET(request: NextRequest) {
     activeUserDaily,
   });
 }
+

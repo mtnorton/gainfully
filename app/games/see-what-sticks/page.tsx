@@ -138,6 +138,11 @@ function drawScene(
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function SeeWhatSticksPage() {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const engineRef   = useRef<Matter.Engine | null>(null);
@@ -330,6 +335,7 @@ export default function SeeWhatSticksPage() {
 
   const fire = useCallback(() => {
     if (firedRef.current || firedToday) return;
+    trackEvent('game_played', { game: 'see_what_sticks' });
     const engine = engineRef.current;
     if (!engine) return;
 

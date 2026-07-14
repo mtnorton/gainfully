@@ -180,6 +180,7 @@ function StatCard({ label, value, sub }: { label: string; value: number; sub?: s
 export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [status, setStatus] = useState<'loading' | 'unauthorized' | 'error' | 'ok'>('loading');
+  const [errorDetail, setErrorDetail] = useState<string>('');
 
   useEffect(() => {
     async function load() {
@@ -193,7 +194,11 @@ export default function AdminPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.status === 401) { setStatus('unauthorized'); return; }
-      if (!res.ok) { setStatus('error'); return; }
+      if (!res.ok) {
+        try { const b = await res.json(); setErrorDetail(`${b.error ?? res.status}: ${b.detail ?? ''}`); } catch { /* ignore */ }
+        setStatus('error');
+        return;
+      }
 
       setStats(await res.json());
       setStatus('ok');
@@ -212,7 +217,10 @@ export default function AdminPage() {
           <p className="text-[#97887A] text-sm mt-8 text-center">Nothing to see here.</p>
         )}
         {status === 'error' && (
-          <p className="text-[#97887A] text-sm mt-8 text-center">Something went wrong.</p>
+          <div className="mt-8 text-center">
+            <p className="text-[#97887A] text-sm">Something went wrong.</p>
+            {errorDetail && <p className="text-[#C4B5A5] text-xs mt-2 font-mono break-all">{errorDetail}</p>}
+          </div>
         )}
 
         {status === 'ok' && stats && (

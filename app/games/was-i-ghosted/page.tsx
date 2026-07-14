@@ -83,6 +83,11 @@ const CHOICE_COPY: Record<GhostedChoice, { headline: string; body: string }> = {
   i_ghosted: { headline: 'You made a call.', body: "Sometimes you move on first. No judgment here." },
 };
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function WasIGhostedPage() {
   const [levelProgress, setLevelProgress] = useState(getLevelProgress(0));
   const [totalXP, setTotalXP] = useState(0);
@@ -140,10 +145,12 @@ export default function WasIGhostedPage() {
     localStorage.setItem(GHOSTED_KEY, JSON.stringify(gs));
     setDaily(newDaily);
     setCurrentItem(item);
+    trackEvent('game_played', { game: 'was_i_ghosted' });
   }
 
   async function handleChoice(choice: GhostedChoice) {
     if (!daily || daily.choice || !currentItem) return;
+    trackEvent('game_choice', { game: 'was_i_ghosted', choice });
 
     let newTotalXP = totalXP;
 

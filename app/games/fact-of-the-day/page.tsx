@@ -30,6 +30,11 @@ function getDailyFactIndex(date: string): number {
   return hash % FACTS.length;
 }
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function FactOfTheDayPage() {
   const [mounted, setMounted] = useState(false);
   const [claimed, setClaimed] = useState(false);
@@ -80,6 +85,7 @@ export default function FactOfTheDayPage() {
 
     localStorage.setItem(FACT_KEY, JSON.stringify({ date: today, claimed: true }));
     setClaimed(true);
+    trackEvent('game_claimed', { game: 'fact_of_day', xp: 25 });
   }
 
   if (!mounted) return null;

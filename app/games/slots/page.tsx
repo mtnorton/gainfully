@@ -44,6 +44,11 @@ const SPIN_DELAYS = [
   ...Array<number>(3).fill(340),
 ];
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function SlotsPage() {
   const [levelProgress, setLevelProgress] = useState(getLevelProgress(0));
   const [totalXP, setTotalXP] = useState(0);
@@ -104,6 +109,7 @@ export default function SlotsPage() {
   const spin = useCallback(() => {
     if (spinning || dailyPick || allActivities.length === 0) return;
     setSpinning(true);
+    trackEvent('game_played', { game: 'slots' });
 
     const winner = allActivities[Math.floor(Math.random() * allActivities.length)];
     let frame = 0;
@@ -183,6 +189,7 @@ export default function SlotsPage() {
       setLevelProgress(getLevelProgress(newTotalXP));
     } catch { /* ignore */ }
 
+    trackEvent('game_claimed', { game: 'slots', xp: xpEarned });
     const updated: DailyPick = { ...dailyPick, claimed: true };
     localStorage.setItem(SLOTS_PICK_KEY, JSON.stringify(updated));
     setDailyPick(updated);

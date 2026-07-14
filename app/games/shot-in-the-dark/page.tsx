@@ -92,6 +92,11 @@ function Target({
   );
 }
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function ShotInTheDarkPage() {
   const [levelProgress, setLevelProgress] = useState(getLevelProgress(0));
   const [totalXP, setTotalXP] = useState(0);
@@ -128,6 +133,7 @@ export default function ShotInTheDarkPage() {
     };
     localStorage.setItem(SHOT_PICK_KEY, JSON.stringify(newPick));
     setPick(newPick);
+    trackEvent('game_played', { game: 'shot_in_dark', xp: xpValue });
   }
 
   async function handleClaim() {
@@ -158,6 +164,7 @@ export default function ShotInTheDarkPage() {
       setLevelProgress(getLevelProgress(newTotalXP));
     } catch { /* ignore */ }
 
+    trackEvent('game_claimed', { game: 'shot_in_dark', xp: pick.xpValue });
     const updated: ShotPick = { ...pick, lastClaimedDate: getGameDay() };
     localStorage.setItem(SHOT_PICK_KEY, JSON.stringify(updated));
     setPick(updated);

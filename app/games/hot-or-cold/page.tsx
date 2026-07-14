@@ -63,6 +63,11 @@ async function logToMainState(xp: number, name: string): Promise<number | null> 
   } catch { return null; }
 }
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function HotOrColdPage() {
   const [levelProgress, setLevelProgress] = useState(getLevelProgress(0));
   const [totalXP, setTotalXP] = useState(0);
@@ -108,6 +113,7 @@ export default function HotOrColdPage() {
   function handleSetTarget() {
     if (!company.trim()) return;
     saveCampaign({ company: company.trim(), goal, contacts: [], bonusClaimed: false });
+    trackEvent('game_played', { game: 'hot_or_cold' });
   }
 
   async function handleLogOutreach() {
@@ -121,6 +127,7 @@ export default function HotOrColdPage() {
     };
     await awardXP(cfg.xp, `Hot or Cold: ${cfg.label} Outreach — ${campaign.company}`);
     saveCampaign({ ...campaign, contacts: [...campaign.contacts, contact] });
+    trackEvent('game_action', { game: 'hot_or_cold', action: 'log_outreach', xp: cfg.xp });
     setShowLog(false);
   }
 
@@ -129,6 +136,7 @@ export default function HotOrColdPage() {
     const xp = bonusXP(campaign.goal);
     await awardXP(xp, `Hot or Cold: Bonus — ${campaign.company}`);
     saveCampaign({ ...campaign, bonusClaimed: true });
+    trackEvent('game_claimed', { game: 'hot_or_cold', xp: xp });
   }
 
   function handleReset() {

@@ -187,6 +187,11 @@ async function downloadAsPng(container: HTMLDivElement, totalApps: number, activ
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function trackEvent(name: string, params?: Record<string, string | number>) {
+  const w = window as Window & { gtag?: (...args: unknown[]) => void };
+  w.gtag?.('event', name, params);
+}
+
 export default function FunnelPage() {
   const [applications, setApplications] = useState<Array<{ id: string }>>([]);
   const [outcomesByApp, setOutcomesByApp] = useState<Map<string, OutcomeType[]>>(new Map());
@@ -239,6 +244,7 @@ export default function FunnelPage() {
   async function handleDownload() {
     if (!chartRef.current) return;
     setDownloading(true);
+    trackEvent('funnel_downloaded', { applications: applicationIds.length });
     try {
       await downloadAsPng(chartRef.current, applicationIds.length, 'All Applications');
     } finally {
@@ -249,6 +255,7 @@ export default function FunnelPage() {
   async function handleShare() {
     if (!chartRef.current) return;
     setSharing(true);
+    trackEvent('funnel_shared_bluesky', { applications: applicationIds.length });
     try {
       await downloadAsPng(chartRef.current, applicationIds.length, 'All Applications');
       const text = encodeURIComponent(
