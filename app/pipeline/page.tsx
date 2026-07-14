@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
-import { Task, CATEGORY_CONFIG, TaskCategory } from '@/lib/types';
+import { Application, Task, CATEGORY_CONFIG, TaskCategory } from '@/lib/types';
 import { Outcome, OutcomeType, OUTCOME_CONFIG } from '@/lib/outcomes';
 import { getLevelProgress } from '@/lib/gameLogic';
 import TaskDetailModal from '@/components/TaskDetailModal';
@@ -53,6 +53,7 @@ function fmtShortDate(iso: string | undefined): string {
 export default function PipelinePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [totalXP, setTotalXP] = useState(0);
   const [badgeCount, setBadgeCount] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -69,6 +70,7 @@ export default function PipelinePage() {
       if (data) {
         setTasks((data.tasks ?? []) as Task[]);
         setOutcomes((data.outcomes ?? []) as Outcome[]);
+        setApplications((data.applications ?? []) as Application[]);
         setTotalXP((data.totalXP ?? 0) as number);
         setBadgeCount(((data.badges ?? []) as { earned: boolean }[]).filter((b) => b.earned).length);
       }
@@ -83,9 +85,11 @@ export default function PipelinePage() {
 
   const handleLogOutcome = async (taskId: string, type: OutcomeType, date: string, notes: string) => {
     const config = OUTCOME_CONFIG[type];
+    const task = tasks.find((t) => t.id === taskId);
     const newOutcome: Outcome = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       taskId,
+      applicationId: task?.applicationId ?? undefined,
       type,
       date,
       notes: notes || undefined,
@@ -103,10 +107,15 @@ export default function PipelinePage() {
     setTotalXP((prev) => prev + config.xp);
   };
 
-  // Enrich rows with outcome data — self-care excluded from pipeline
+  const applicationMap = new Map(applications.map((a) => [a.id, a]));
+
+  // Enrich rows with application data and outcomes — self-care excluded from pipeline
   const rows = tasks.filter((t) => t.category !== 'selfcare').map((task) => {
+    const application = task.applicationId ? applicationMap.get(task.applicationId) : undefined;
+    const company = task.company ?? application?.company;
+    const jobTitle = task.jobTitle ?? application?.jobTitle;
     const taskOutcomes = outcomes
-      .filter((o) => o.taskId === task.id)
+      .filter((o) => o.taskId === task.id || (task.applicationId && o.applicationId === task.applicationId))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const latest = taskOutcomes[0] ?? null;
     const daysSince =
@@ -118,11 +127,11 @@ export default function PipelinePage() {
       ['application', 'recruiter', 'networking'].includes(task.category) &&
       taskOutcomes.length === 0;
     const outcomesXP = taskOutcomes.reduce((sum, o) => sum + (o.xpAwarded ?? 0), 0);
-    return { task, taskOutcomes, latest, daysSince, mightBeGhosted, outcomesXP };
+    return { task, application, company, jobTitle, taskOutcomes, latest, daysSince, mightBeGhosted, outcomesXP };
   });
 
   // Filters
-  const filtered = rows.filter(({ task, taskOutcomes, latest }) => {
+  const filtered = rows.filter(({ task, company, jobTitle, taskOutcomes, latest }) => {
     if (categoryFilter !== 'all' && task.category !== categoryFilter) return false;
     if (statusFilter === 'active' && task.completed) return false;
     if (statusFilter === 'completed' && !task.completed) return false;
@@ -132,8 +141,8 @@ export default function PipelinePage() {
     if (search.trim()) {
       const q = search.toLowerCase();
       if (!task.name.toLowerCase().includes(q) &&
-          !(task.company?.toLowerCase().includes(q)) &&
-          !(task.jobTitle?.toLowerCase().includes(q))) return false;
+          !(company?.toLowerCase().includes(q)) &&
+          !(jobTitle?.toLowerCase().includes(q))) return false;
     }
     return true;
   });
@@ -146,11 +155,11 @@ export default function PipelinePage() {
 
   const handleExportCSV = () => {
     const headers = ['Task', 'Category', 'Company / Contact', 'Job Title', 'Date', 'Status', 'XP', 'Latest Result', 'Result Date', 'Notes'];
-    const csvRows = sorted.map(({ task, latest }) => [
+    const csvRows = sorted.map(({ task, company, jobTitle, latest }) => [
       csvEscape(task.name),
       csvEscape(CATEGORY_CONFIG[task.category]?.label),
-      csvEscape(task.company),
-      csvEscape(task.jobTitle),
+      csvEscape(company),
+      csvEscape(jobTitle),
       csvEscape(task.activityDate ?? task.createdAt.split('T')[0]),
       csvEscape(task.completed ? 'Completed' : 'Active'),
       csvEscape(String(task.xp)),
@@ -163,7 +172,7 @@ export default function PipelinePage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gainfully-pipeline-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `mvuu-pipeline-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -188,7 +197,7 @@ export default function PipelinePage() {
 
   const selectedTask = selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null;
   const selectedTaskOutcomes = outcomes
-    .filter((o) => o.taskId === selectedTaskId)
+    .filter((o) => o.taskId === selectedTaskId || (selectedTask?.applicationId && o.applicationId === selectedTask.applicationId))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const selectClass = 'rounded-xl px-3 py-2 text-[#6f6155] text-sm outline-none' +
@@ -259,7 +268,7 @@ export default function PipelinePage() {
           <>
             {/* Mobile: card list */}
             <div className="md:hidden space-y-2">
-              {sorted.map(({ task, latest, mightBeGhosted, outcomesXP }) => {
+              {sorted.map(({ task, company, jobTitle, latest, mightBeGhosted, outcomesXP }) => {
                 const catConfig = CATEGORY_CONFIG[task.category] ?? CATEGORY_CONFIG['research'];
                 const outcomeConfig = latest ? OUTCOME_CONFIG[latest.type] : null;
                 const taskDate = task.activityDate ?? task.createdAt.split('T')[0];
@@ -275,8 +284,8 @@ export default function PipelinePage() {
                       <p className="text-sm font-bold text-[#2C2724] leading-snug">{task.name}</p>
                       <span className="text-xs text-[#F5A300] font-bold whitespace-nowrap shrink-0">+{task.xp + outcomesXP} XP</span>
                     </div>
-                    {(task.company || task.jobTitle) && (
-                      <p className="text-xs text-[#97887A] mt-0.5">{[task.company, task.jobTitle].filter(Boolean).join(' · ')}</p>
+                    {(company || jobTitle) && (
+                      <p className="text-xs text-[#97887A] mt-0.5">{[company, jobTitle].filter(Boolean).join(' · ')}</p>
                     )}
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${catConfig.colorClasses}`}>
@@ -315,7 +324,7 @@ export default function PipelinePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F3EADD]">
-                  {sorted.map(({ task, latest, mightBeGhosted, outcomesXP }) => {
+                  {sorted.map(({ task, company, jobTitle, latest, mightBeGhosted, outcomesXP }) => {
                     const catConfig = CATEGORY_CONFIG[task.category] ?? CATEGORY_CONFIG['research'];
                     const outcomeConfig = latest ? OUTCOME_CONFIG[latest.type] : null;
                     const taskDate = task.activityDate ?? task.createdAt.split('T')[0];
@@ -333,9 +342,9 @@ export default function PipelinePage() {
                       >
                         <td className="px-4 py-3">
                           <p className="font-fredoka font-semibold text-[14px] leading-snug text-[#2C2724]">{task.name}</p>
-                          {(task.company || task.jobTitle) && (
+                          {(company || jobTitle) && (
                             <p className="text-xs text-[#A99C8D] mt-0.5">
-                              {[task.company, task.jobTitle].filter(Boolean).join(' · ')}
+                              {[company, jobTitle].filter(Boolean).join(' · ')}
                             </p>
                           )}
                           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">

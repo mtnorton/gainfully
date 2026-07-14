@@ -63,8 +63,8 @@ interface SankeyLink { source: string; target: string; value: number }
 interface SankeyData { nodes: SankeyNode[]; links: SankeyLink[] }
 
 function buildSankeyData(
-  taskIds: string[],
-  outcomesByTask: Map<string, OutcomeType[]>,
+  appIds: string[],
+  outcomesByApp: Map<string, OutcomeType[]>,
 ): SankeyData {
   const linkCounts = new Map<string, number>();
   const usedNodes = new Set<string>();
@@ -76,8 +76,8 @@ function buildSankeyData(
     usedNodes.add(to);
   };
 
-  for (const taskId of taskIds) {
-    const types = new Set(outcomesByTask.get(taskId) ?? []);
+  for (const appId of appIds) {
+    const types = new Set(outcomesByApp.get(appId) ?? []);
     const positiveReached = POSITIVE_STAGES.filter((s) => types.has(s));
     const negativeReached = NEGATIVE_STAGES.find((n) => types.has(n));
 
@@ -188,11 +188,11 @@ async function downloadAsPng(container: HTMLDivElement, totalApps: number, activ
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function FunnelPage() {
-  // applications are now the primary entity; tasks link to them via application_id
   const [applications, setApplications] = useState<Array<{ id: string }>>([]);
   const [outcomesByApp, setOutcomesByApp] = useState<Map<string, OutcomeType[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -202,53 +202,24 @@ export default function FunnelPage() {
       if (!session) { setLoading(false); return; }
       const userId = session.user.id;
 
-      // Fetch applications, all outcomes, and legacy submission tasks in parallel
-      const [appsResult, outcomesResult, legacyTasksResult] = await Promise.all([
-        supabase.from('applications').select('id').eq('user_id', userId).eq('archived', false),
-        supabase.from('outcomes').select('application_id, task_id, type').eq('user_id', userId).eq('archived', false),
-        // Legacy: submission tasks that predate the applications table
-        supabase.from('tasks')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('category', 'application')
-          .eq('archived', false)
-          .is('application_id', null)
-          .in('name', ['Submit a tailored application', 'Spray and pray (mass apply)']),
+      const [appsResult, outcomesResult] = await Promise.all([
+        supabase.from('applications').select('id').eq('user_id', userId),
+        supabase.from('outcomes').select('application_id, type').eq('user_id', userId).eq('archived', false),
       ]);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const appList = (appsResult.data ?? []) as Array<{ id: string }>;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const legacyTasks = (legacyTasksResult.data ?? []) as Array<{ id: string }>;
+      setApplications(appList);
 
-      // Represent legacy tasks as synthetic "application" ids so they flow through the same Sankey logic
-      const LEGACY_PREFIX = '__legacy__';
-      const legacySyntheticIds = legacyTasks.map((t) => `${LEGACY_PREFIX}${t.id}`);
-      const legacyTaskIdSet = new Set(legacyTasks.map((t) => t.id));
+      if (appList.length === 0) { setLoading(false); return; }
 
-      const allIds = [...appList.map((a) => a.id), ...legacySyntheticIds];
-      setApplications(allIds.map((id) => ({ id })));
-
-      if (allIds.length === 0) { setLoading(false); return; }
-
-      const appIds = new Set(appList.map((a) => a.id));
+      const appIdSet = new Set(appList.map((a) => a.id));
       const map = new Map<string, OutcomeType[]>();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allOutcomes = (outcomesResult.data ?? []) as Array<{ application_id: string | null; task_id: string | null; type: string }>;
-
+      const allOutcomes = (outcomesResult.data ?? []) as Array<{ application_id: string | null; type: string }>;
       for (const o of allOutcomes) {
-        // Outcome linked directly to an application
-        if (o.application_id && appIds.has(o.application_id)) {
+        if (o.application_id && appIdSet.has(o.application_id)) {
           if (!map.has(o.application_id)) map.set(o.application_id, []);
           map.get(o.application_id)!.push(o.type as OutcomeType);
-          continue;
-        }
-        // Legacy outcome linked to a submission task
-        if (o.task_id && legacyTaskIdSet.has(o.task_id)) {
-          const syntheticId = `${LEGACY_PREFIX}${o.task_id}`;
-          if (!map.has(syntheticId)) map.set(syntheticId, []);
-          map.get(syntheticId)!.push(o.type as OutcomeType);
         }
       }
 
@@ -275,6 +246,20 @@ export default function FunnelPage() {
     }
   }
 
+  async function handleShare() {
+    if (!chartRef.current) return;
+    setSharing(true);
+    try {
+      await downloadAsPng(chartRef.current, applicationIds.length, 'All Applications');
+      const text = encodeURIComponent(
+        `My job application funnel — ${applicationIds.length} application${applicationIds.length !== 1 ? 's' : ''} tracked 🌊\n\nmvuu.co`
+      );
+      window.open(`https://bsky.app/intent/compose?text=${text}`, '_blank', 'noopener,noreferrer');
+    } finally {
+      setSharing(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#FFF6EC]">
       <AppHeader />
@@ -293,21 +278,38 @@ export default function FunnelPage() {
             </p>
           </div>
           {sankeyData && (
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-fredoka font-semibold text-[#97887A] hover:text-[#2C2724] transition-colors disabled:opacity-50 mt-1"
-              style={{ border: '1.5px solid #EFE0CC' }}
-            >
-              {downloading ? 'Saving…' : (
-                <>
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                    <path d="M6.5 1v7M3.5 5.5l3 3 3-3M1.5 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Save PNG
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={handleDownload}
+                disabled={downloading || sharing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-fredoka font-semibold text-[#97887A] hover:text-[#2C2724] transition-colors disabled:opacity-50"
+                style={{ border: '1.5px solid #EFE0CC' }}
+              >
+                {downloading ? 'Saving…' : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                      <path d="M6.5 1v7M3.5 5.5l3 3 3-3M1.5 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Save PNG
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={downloading || sharing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-fredoka font-semibold text-[#97887A] hover:text-[#0085FF] transition-colors disabled:opacity-50"
+                style={{ border: '1.5px solid #EFE0CC' }}
+              >
+                {sharing ? 'Saving…' : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 600 530" fill="currentColor">
+                      <path d="M135.72 44.03C202.216 93.951 273.74 195.464 300 249.466c26.262-53.994 97.785-155.515 164.28-205.437C512.68 8.763 590-9.193 590 80.921c0 17.536-10.057 147.344-15.951 168.48-20.503 73.29-95.38 91.993-161.855 80.664 116.153 19.778 145.68 85.307 81.855 150.836-121.239 124.395-174.34-31.229-187.346-71.12-2.042-5.994-3.009-8.803-3.028-6.42-.019-2.383-.986.426-3.028 6.42-13.006 39.891-66.107 195.515-187.346 71.12-63.825-65.529-34.298-131.058 81.855-150.836-66.475 11.329-141.352-7.374-161.855-80.664C25.957 228.265 15.9 98.457 15.9 80.921c0-90.114 77.32-72.158 119.82-36.891z"/>
+                    </svg>
+                    Bluesky
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
 

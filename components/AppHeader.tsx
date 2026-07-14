@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import UserModal from './UserModal';
@@ -51,7 +52,7 @@ export default function AppHeader() {
     <>
       <header className="sticky top-0 z-30 bg-white" style={{ borderBottom: '2px solid #F1E2CF' }}>
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center">
-          <span className="font-fredoka font-bold text-xl text-[#2C2724] tracking-wide">MVUU</span>
+          <Link href="/" className="font-fredoka font-bold text-xl text-[#2C2724] tracking-wide hover:text-[#7C5CFC] transition-colors">MVUU</Link>
           <div className="ml-auto flex items-center gap-2">
             <span
               className="font-fredoka font-bold text-sm px-2.5 py-0.5 rounded-lg"

@@ -8,7 +8,8 @@ interface AdminStats {
   users: { total: number; anonymous: number; registered: number };
   tasks: { total: number };
   outcomes: { total: number };
-  daily: Array<{ date: string; tasks: number; outcomes: number }>;
+  applications: { total: number };
+  daily: Array<{ date: string; tasks: number; outcomes: number; applications: number }>;
   userDaily: Array<{ date: string; anonymous: number; registered: number }>;
   activeUserDaily: Array<{ date: string; active: number }>;
 }
@@ -22,61 +23,45 @@ function LineChart({ data }: { data: AdminStats['daily'] }) {
   const cw = W - pad.left - pad.right;
   const ch = H - pad.top - pad.bottom;
 
-  const maxVal = Math.max(...data.flatMap((d) => [d.tasks, d.outcomes]), 1);
+  const maxVal = Math.max(...data.flatMap((d) => [d.tasks, d.outcomes, d.applications]), 1);
   const n = data.length;
 
   const x = (i: number) => (i / (n - 1)) * cw;
   const y = (v: number) => ch - (v / maxVal) * ch;
 
-  const line = (key: 'tasks' | 'outcomes') =>
+  const line = (key: 'tasks' | 'outcomes' | 'applications') =>
     data.map((d, i) => `${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join(' ');
 
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(t * maxVal));
-
-  // Show date labels every 7 days
   const dateLabels = data.filter((_, i) => i === 0 || i === n - 1 || i % 7 === 0);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
       <g transform={`translate(${pad.left},${pad.top})`}>
-        {/* Horizontal grid lines */}
         {gridLines.map((v, gi) => (
           <g key={gi}>
-            <line
-              x1={0} y1={y(v).toFixed(1)}
-              x2={cw} y2={y(v).toFixed(1)}
-              stroke="#EFE0CC" strokeWidth="1"
-            />
-            <text x={-6} y={y(v)} dominantBaseline="middle" textAnchor="end"
-              fontSize="10" fill="#B8A99A">
-              {v}
-            </text>
+            <line x1={0} y1={y(v).toFixed(1)} x2={cw} y2={y(v).toFixed(1)} stroke="#EFE0CC" strokeWidth="1" />
+            <text x={-6} y={y(v)} dominantBaseline="middle" textAnchor="end" fontSize="10" fill="#B8A99A">{v}</text>
           </g>
         ))}
 
-        {/* Lines */}
-        <polyline fill="none" stroke="#7C5CFC" strokeWidth="2.5" strokeLinejoin="round"
-          strokeLinecap="round" points={line('tasks')} />
-        <polyline fill="none" stroke="#FF6B4A" strokeWidth="2.5" strokeLinejoin="round"
-          strokeLinecap="round" points={line('outcomes')} />
+        <polyline fill="none" stroke="#7C5CFC" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={line('tasks')} />
+        <polyline fill="none" stroke="#FF6B4A" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={line('outcomes')} />
+        <polyline fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={line('applications')} />
 
-        {/* Dots */}
         {data.map((d, i) => (
           <g key={d.date}>
             <circle cx={x(i)} cy={y(d.tasks)} r={3} fill="#7C5CFC" />
             <circle cx={x(i)} cy={y(d.outcomes)} r={3} fill="#FF6B4A" />
+            <circle cx={x(i)} cy={y(d.applications)} r={3} fill="#16A34A" />
           </g>
         ))}
 
-        {/* X axis date labels */}
         {dateLabels.map((d, idx) => {
           const i = data.indexOf(d);
           const label = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
           return (
-            <text key={idx} x={x(i)} y={ch + 18} textAnchor="middle"
-              fontSize="10" fill="#B8A99A">
-              {label}
-            </text>
+            <text key={idx} x={x(i)} y={ch + 18} textAnchor="middle" fontSize="10" fill="#B8A99A">{label}</text>
           );
         })}
       </g>
@@ -247,7 +232,8 @@ export default function AdminPage() {
             {/* Activity */}
             <section>
               <p className="font-fredoka font-bold text-[11px] text-[#97887A] uppercase tracking-widest mb-3">Activity</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <StatCard label="Applications" value={stats.applications.total} />
                 <StatCard label="Tasks Logged" value={stats.tasks.total} />
                 <StatCard label="Outcomes Logged" value={stats.outcomes.total} />
               </div>
@@ -258,6 +244,10 @@ export default function AdminPage() {
               <div className="flex items-center justify-between mb-3">
                 <p className="font-fredoka font-bold text-[11px] text-[#97887A] uppercase tracking-widest">Daily Activity — Last 30 Days</p>
                 <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5 text-[11px] text-[#97887A]">
+                    <span className="w-3 h-0.5 bg-[#16A34A] inline-block rounded" />
+                    Applications
+                  </span>
                   <span className="flex items-center gap-1.5 text-[11px] text-[#97887A]">
                     <span className="w-3 h-0.5 bg-[#7C5CFC] inline-block rounded" />
                     Tasks

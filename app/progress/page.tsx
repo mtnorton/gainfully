@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Task, Badge, TaskCategory, CATEGORY_CONFIG } from '@/lib/types';
+import { Application, Task, Badge, TaskCategory, CATEGORY_CONFIG } from '@/lib/types';
 import { Outcome, OUTCOME_CONFIG, OutcomeType } from '@/lib/outcomes';
 import { getInitialBadges, getLevelProgress, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
 import AppHeader from '@/components/AppHeader';
@@ -18,6 +18,7 @@ interface WeekSummary {
   gameXP: number;
   totalXP: number;
   badges: Badge[];
+  applications: Application[];
   start: Date;
   end: Date;
 }
@@ -41,6 +42,7 @@ function buildWeekSummary(
   tasks: Task[],
   outcomes: Outcome[],
   badges: Badge[],
+  applications: Application[],
   weeksAgo: number
 ): WeekSummary {
   const { start, end } = getWeekBounds(weeksAgo);
@@ -61,6 +63,11 @@ function buildWeekSummary(
   const weekBadges = badges.filter((b) => {
     if (!b.earned || !b.earnedAt) return false;
     const d = new Date(b.earnedAt);
+    return d >= start && d <= end;
+  });
+
+  const weekApplications = applications.filter((a) => {
+    const d = new Date(a.dateApplied ? a.dateApplied + 'T12:00:00' : a.createdAt);
     return d >= start && d <= end;
   });
 
@@ -89,6 +96,7 @@ function buildWeekSummary(
     gameXP,
     totalXP: taskXP + outcomeXP + gameXP,
     badges: weekBadges,
+    applications: weekApplications,
     start,
     end,
   };
@@ -173,7 +181,7 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
   const dateRange = isThisWeek
     ? `${fmtDate(summary.start)} – today`
     : `${fmtDate(summary.start)} – ${fmtDate(summary.end)}`;
-  const hasActivity = summary.tasks.length > 0 || summary.outcomes.length > 0 || summary.gameRounds > 0;
+  const hasActivity = summary.tasks.length > 0 || summary.outcomes.length > 0 || summary.gameRounds > 0 || summary.applications.length > 0;
   const shareText = hasActivity ? buildShareText(summary, level, totalXP, isThisWeek) : '';
 
   return (
@@ -230,6 +238,28 @@ function WeekSection({ label, summary, level, totalXP, copied, onCopy }: WeekSec
                   ].filter(Boolean).join(' + ')})
                 </span>
               )}
+            </div>
+          )}
+
+          {summary.applications.length > 0 && (
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#A99C8D] mb-2">
+                Applications submitted · {summary.applications.length}
+              </p>
+              <div className="space-y-1.5">
+                {summary.applications.map((app) => (
+                  <div key={app.id} className="flex items-center justify-between py-1 border-b border-[#F3EADD]">
+                    <span className="font-bold text-[14px] text-[#2C2724]">
+                      {app.company}{app.jobTitle ? <span className="font-normal text-[#97887A]"> — {app.jobTitle}</span> : null}
+                    </span>
+                    {app.dateApplied && (
+                      <span className="text-xs text-[#A99C8D] tabular-nums shrink-0 ml-2">
+                        {new Date(app.dateApplied + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -318,6 +348,7 @@ export default function ProgressPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [totalXP, setTotalXP] = useState(0);
   const [badgeCount, setBadgeCount] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -329,6 +360,7 @@ export default function ProgressPage() {
       if (data) {
         setTasks((data.tasks ?? []) as Task[]);
         setOutcomes((data.outcomes ?? []) as Outcome[]);
+        setApplications((data.applications ?? []) as Application[]);
         setTotalXP((data.totalXP ?? 0) as number);
         const merged = getInitialBadges().map((b) => {
           const found = ((data.badges ?? []) as Badge[]).find((sb) => sb.id === b.id);
@@ -353,8 +385,8 @@ export default function ProgressPage() {
 
   const levelProgress = getLevelProgress(totalXP);
   const completedNonGameCount = tasks.filter((t) => t.completed && !GAME_ONLY_TASK_NAMES.has(t.name)).length;
-  const thisWeek = buildWeekSummary(tasks, outcomes, badges, 0);
-  const lastWeek = buildWeekSummary(tasks, outcomes, badges, 1);
+  const thisWeek = buildWeekSummary(tasks, outcomes, badges, applications, 0);
+  const lastWeek = buildWeekSummary(tasks, outcomes, badges, applications, 1);
 
   return (
     <div className="min-h-screen bg-[#FFF6EC]">

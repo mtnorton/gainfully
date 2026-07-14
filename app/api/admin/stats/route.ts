@@ -25,10 +25,11 @@ function buildSeriesSlots(offsetMinutes: number, count: number): string[] {
 function buildDailySeries(
   taskDates: string[],
   outcomeDates: string[],
+  appDates: string[],
   offsetMinutes: number,
-): Array<{ date: string; tasks: number; outcomes: number }> {
+): Array<{ date: string; tasks: number; outcomes: number; applications: number }> {
   const slots = buildSeriesSlots(offsetMinutes, 30);
-  const series = slots.map((date) => ({ date, tasks: 0, outcomes: 0 }));
+  const series = slots.map((date) => ({ date, tasks: 0, outcomes: 0, applications: 0 }));
   for (const iso of taskDates) {
     const entry = series.find((s) => s.date === dateKey(iso, offsetMinutes));
     if (entry) entry.tasks++;
@@ -37,18 +38,23 @@ function buildDailySeries(
     const entry = series.find((s) => s.date === dateKey(iso, offsetMinutes));
     if (entry) entry.outcomes++;
   }
+  for (const iso of appDates) {
+    const entry = series.find((s) => s.date === dateKey(iso, offsetMinutes));
+    if (entry) entry.applications++;
+  }
   return series;
 }
 
 function buildActiveUsersDailySeries(
   tasks: Array<{ created_at: string; user_id: string }>,
   outcomes: Array<{ created_at: string; user_id: string }>,
+  applications: Array<{ created_at: string; user_id: string }>,
   offsetMinutes: number,
 ): Array<{ date: string; active: number }> {
   const slots = buildSeriesSlots(offsetMinutes, 30);
   const series = slots.map((date) => ({ date, active: 0 }));
   const byDate = new Map<string, Set<string>>();
-  for (const row of [...tasks, ...outcomes]) {
+  for (const row of [...tasks, ...outcomes, ...applications]) {
     const day = dateKey(row.created_at, offsetMinutes);
     if (!byDate.has(day)) byDate.set(day, new Set());
     byDate.get(day)!.add(row.user_id);
@@ -82,7 +88,6 @@ export async function GET(request: NextRequest) {
   }
   const token = authHeader.slice(7);
 
-  // Verify the caller's identity using the anon key
   const verifier = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -98,25 +103,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }
 
-  // Service-role client for admin queries — never leaves the server
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  // Client sends its local UTC offset (e.g. -240 for EDT) so dates align with user's timezone
   const utcOffset = parseInt(request.nextUrl.searchParams.get('utcOffset') ?? '0', 10);
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [usersRes, allTasksRes, allOutcomesRes] =
-    await Promise.all([
-      admin.auth.admin.listUsers({ perPage: 1000, page: 1 }),
-      admin.from('tasks').select('created_at, user_id'),
-      admin.from('outcomes').select('created_at, user_id'),
-    ]);
+  const [usersRes, allTasksRes, allOutcomesRes, allAppsRes] = await Promise.all([
+    admin.auth.admin.listUsers({ perPage: 1000, page: 1 }),
+    admin.from('tasks').select('created_at, user_id'),
+    admin.from('outcomes').select('created_at, user_id'),
+    admin.from('applications').select('created_at, user_id'),
+  ]);
 
   if (allTasksRes.error) {
     console.error('[admin] tasks query error:', allTasksRes.error);
@@ -126,21 +129,32 @@ export async function GET(request: NextRequest) {
     console.error('[admin] outcomes query error:', allOutcomesRes.error);
     return NextResponse.json({ error: 'outcomes query failed', detail: allOutcomesRes.error.message }, { status: 500 });
   }
+  if (allAppsRes.error) {
+    console.error('[admin] applications query error:', allAppsRes.error);
+    return NextResponse.json({ error: 'applications query failed', detail: allAppsRes.error.message }, { status: 500 });
+  }
 
-  const allUsers = usersRes.data?.users ?? [];
+  const adminId = process.env.ADMIN_USER_ID;
+  const allUsers = (usersRes.data?.users ?? []).filter((u) => u.id !== adminId);
   const anonymous = allUsers.filter((u) => u.is_anonymous).length;
   const registered = allUsers.filter((u) => !u.is_anonymous).length;
 
-  const allTaskDates = (allTasksRes.data ?? []).map((r) => r.created_at as string);
-  const allOutcomeDates = (allOutcomesRes.data ?? []).map((r) => r.created_at as string);
+  const allTaskRows = ((allTasksRes.data ?? []) as Array<{ created_at: string; user_id: string }>)
+    .filter((r) => r.user_id !== adminId);
+  const allOutcomeRows = ((allOutcomesRes.data ?? []) as Array<{ created_at: string; user_id: string }>)
+    .filter((r) => r.user_id !== adminId);
+  const allAppRows = ((allAppsRes.data ?? []) as Array<{ created_at: string; user_id: string }>)
+    .filter((r) => r.user_id !== adminId);
+
+  const allTaskDates = allTaskRows.map((r) => r.created_at);
+  const allOutcomeDates = allOutcomeRows.map((r) => r.created_at);
+  const allAppDates = allAppRows.map((r) => r.created_at);
 
   const recentTaskDates = allTaskDates.filter((d) => d >= thirtyDaysAgo.toISOString());
   const recentOutcomeDates = allOutcomeDates.filter((d) => d >= thirtyDaysAgo.toISOString());
+  const recentAppDates = allAppDates.filter((d) => d >= thirtyDaysAgo.toISOString());
 
-  const allTaskRows = (allTasksRes.data ?? []) as Array<{ created_at: string; user_id: string }>;
-  const allOutcomeRows = (allOutcomesRes.data ?? []) as Array<{ created_at: string; user_id: string }>;
-
-  const daily = buildDailySeries(recentTaskDates, recentOutcomeDates, utcOffset);
+  const daily = buildDailySeries(recentTaskDates, recentOutcomeDates, recentAppDates, utcOffset);
   const userDaily = buildUserDailySeries(
     allUsers.map((u) => ({ created_at: u.created_at, is_anonymous: u.is_anonymous ?? false })),
     utcOffset,
@@ -148,6 +162,7 @@ export async function GET(request: NextRequest) {
   const activeUserDaily = buildActiveUsersDailySeries(
     allTaskRows.filter((r) => r.created_at >= thirtyDaysAgo.toISOString()),
     allOutcomeRows.filter((r) => r.created_at >= thirtyDaysAgo.toISOString()),
+    allAppRows.filter((r) => r.created_at >= thirtyDaysAgo.toISOString()),
     utcOffset,
   );
 
@@ -155,6 +170,7 @@ export async function GET(request: NextRequest) {
     users: { total: allUsers.length, anonymous, registered },
     tasks: { total: allTaskDates.length },
     outcomes: { total: allOutcomeDates.length },
+    applications: { total: allAppDates.length },
     daily,
     userDaily,
     activeUserDaily,

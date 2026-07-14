@@ -27,10 +27,10 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   const userId = session.user.id;
 
   const [appsRes, tasksRes, outcomesRes, badgesRes, activitiesRes, settingsRes] = await Promise.all([
-    supabase.from('applications').select('*').eq('user_id', userId).eq('archived', false),
+    supabase.from('applications').select('*').eq('user_id', userId),
     supabase.from('tasks').select('*').eq('user_id', userId).eq('archived', false),
     supabase.from('outcomes').select('*').eq('user_id', userId).eq('archived', false),
-    supabase.from('user_badges').select('*').eq('user_id', userId).eq('archived', false),
+    supabase.from('user_badges').select('*').eq('user_id', userId),
     supabase.from('custom_activities').select('*').eq('user_id', userId),
     supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
   ]);
@@ -252,29 +252,41 @@ export async function saveState(state: unknown): Promise<void> {
     }
 
     if (rows.length > 0) {
-      const { error: upsErr } = await supabase.from(table).upsert(rows);
+      const { error: upsErr } = await supabase.from(table).upsert(rows, { onConflict: 'id' });
       if (upsErr) console.error(`[gainfully] saveState ${table} upsert:`, upsErr);
     }
   }
 
-  await Promise.all([
-    syncTable(
-      'applications',
-      applications.map((a) => a.id),
-      applications.map((a) => ({
-        id:           a.id,
-        user_id:      userId,
-        company:      a.company,
-        job_title:    a.jobTitle    ?? null,
-        url:          a.url         ?? null,
-        platform:     a.platform    ?? null,
-        date_applied: a.dateApplied ?? null,
-        notes:        a.notes       ?? null,
-        created_at:   a.createdAt,
-        updated_at:   new Date().toISOString(),
-      })),
-    ),
+  // Save applications first — tasks may FK-reference application IDs
+  await (async () => {
+    const { data: existing } = await supabase
+      .from('applications').select('id').eq('user_id', userId);
+    const currentIds = new Set(applications.map((a) => a.id));
+    const toDelete = (existing ?? []).map((r: { id: string }) => r.id).filter((id: string) => !currentIds.has(id));
+    if (toDelete.length > 0) {
+      const { error } = await supabase.from('applications').delete().eq('user_id', userId).in('id', toDelete);
+      if (error) console.error('[gainfully] saveState applications delete:', error);
+    }
+    if (applications.length > 0) {
+      const { error } = await supabase.from('applications').upsert(
+        applications.map((a) => ({
+          id:           a.id,
+          user_id:      userId,
+          company:      a.company,
+          job_title:    a.jobTitle    ?? null,
+          url:          a.url         ?? null,
+          platform:     a.platform    ?? null,
+          date_applied: a.dateApplied ?? null,
+          notes:        a.notes       ?? null,
+          created_at:   a.createdAt,
+        })),
+        { onConflict: 'id' },
+      );
+      if (error) console.error('[gainfully] saveState applications upsert:', error);
+    }
+  })();
 
+  await Promise.all([
     syncTable(
       'tasks',
       tasks.map((t) => t.id),
@@ -327,19 +339,16 @@ export async function saveState(state: unknown): Promise<void> {
 
     (async () => {
       const earned = badges.filter((b) => b.earned);
-      const { error: delErr } = await supabase
-        .from('user_badges').delete().eq('user_id', userId).eq('archived', false);
-      if (delErr) { console.error('[gainfully] saveState badges delete:', delErr); return; }
-      if (earned.length > 0) {
-        const { error: insErr } = await supabase.from('user_badges').insert(
-          earned.map((b) => ({
-            user_id:   userId,
-            badge_id:  b.id,
-            earned_at: b.earnedAt ?? new Date().toISOString(),
-          }))
-        );
-        if (insErr) console.error('[gainfully] saveState badges insert:', insErr);
-      }
+      if (earned.length === 0) return;
+      const { error: upsertErr } = await supabase.from('user_badges').upsert(
+        earned.map((b) => ({
+          user_id:   userId,
+          badge_id:  b.id,
+          earned_at: b.earnedAt ?? new Date().toISOString(),
+        })),
+        { onConflict: 'user_id,badge_id' }
+      );
+      if (upsertErr) console.error('[gainfully] saveState badges upsert:', upsertErr);
     })(),
 
     (async () => {
