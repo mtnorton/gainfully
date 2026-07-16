@@ -177,6 +177,20 @@ export default function PipelinePage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDeleteOutcome = async (outcomeId: string) => {
+    const outcomeToDelete = outcomes.find((o) => o.id === outcomeId);
+    const xpToSubtract = outcomeToDelete?.xpAwarded ?? 0;
+    try {
+      const data = await loadState();
+      const state: Record<string, unknown> = data ?? { tasks: [], outcomes: [], totalXP: 0, badges: [], customActivities: [], xpOverrides: {} };
+      state.outcomes = ((state.outcomes as Outcome[]) ?? []).filter((o) => o.id !== outcomeId);
+      state.totalXP = ((state.totalXP as number) ?? 0) - xpToSubtract;
+      await saveState(state);
+    } catch {}
+    setOutcomes((prev) => prev.filter((o) => o.id !== outcomeId));
+    setTotalXP((prev) => prev - xpToSubtract);
+  };
+
   const handleDeleteTask = async (taskId: string) => {
     try {
       const data = await loadState();
@@ -410,6 +424,7 @@ export default function PipelinePage() {
         onClose={() => setSelectedTaskId(null)}
         onLogOutcome={handleLogOutcome}
         onDelete={handleDeleteTask}
+        onDeleteOutcome={handleDeleteOutcome}
       />
     </div>
   );

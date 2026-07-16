@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import { Application, Task, TaskCategory, CustomActivity, Badge } from '@/lib/types';
+import { Application, Task, TaskCategory, CustomActivity, Badge, LevelUpEvent } from '@/lib/types';
 import { Outcome, OutcomeType } from '@/lib/outcomes';
 import { getInitialBadges } from '@/lib/gameLogic';
 
@@ -104,6 +104,7 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   const xpOverrides = (settingsRes.data?.xp_overrides ?? {}) as Record<string, number>;
   const freezeTokens = (settingsRes.data?.freeze_tokens ?? 0) as number;
   const frozenDates = (settingsRes.data?.frozen_dates ?? []) as string[];
+  const levelHistory = (settingsRes.data?.level_history ?? []) as LevelUpEvent[];
 
   const retainedXP = (settingsRes.data?.retained_xp ?? 0) as number;
   const totalXP =
@@ -111,7 +112,7 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
     outcomes.reduce((s, o) => s + o.xpAwarded, 0) +
     retainedXP;
 
-  return { applications, tasks, outcomes, totalXP, badges, customActivities, xpOverrides, freezeTokens, frozenDates };
+  return { applications, tasks, outcomes, totalXP, badges, customActivities, xpOverrides, freezeTokens, frozenDates, levelHistory };
 }
 
 // ── consent ───────────────────────────────────────────────────────────────────
@@ -223,6 +224,7 @@ export async function saveState(state: unknown): Promise<void> {
     badges?:           Badge[];
     customActivities?: CustomActivity[];
     xpOverrides?:      Record<string, number>;
+    levelHistory?:     LevelUpEvent[];
   };
 
   const applications     = s.applications     ?? [];
@@ -231,6 +233,7 @@ export async function saveState(state: unknown): Promise<void> {
   const badges           = s.badges           ?? [];
   const customActivities = s.customActivities ?? [];
   const xpOverrides      = s.xpOverrides      ?? {};
+  const levelHistory     = s.levelHistory     ?? [];
 
   async function syncTable(
     table: string,
@@ -353,7 +356,7 @@ export async function saveState(state: unknown): Promise<void> {
 
     (async () => {
       const { error } = await supabase.from('user_settings').upsert(
-        { user_id: userId, xp_overrides: xpOverrides, updated_at: new Date().toISOString() },
+        { user_id: userId, xp_overrides: xpOverrides, level_history: levelHistory, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       );
       if (error) console.error('[gainfully] saveState settings:', error);

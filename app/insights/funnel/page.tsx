@@ -15,6 +15,7 @@ const ResponsiveSankey = dynamic(
 // ── Stage definitions ─────────────────────────────────────────────────────────
 
 const POSITIVE_STAGES: OutcomeType[] = [
+  'right_to_represent',
   'interview',
   'technical_screening',
   'technical_interview',
@@ -27,8 +28,9 @@ const POSITIVE_STAGES: OutcomeType[] = [
 const NEGATIVE_STAGES: OutcomeType[] = ['rejection', 'ghosted', 'position_closed'];
 
 const NODE_LABEL: Record<string, string> = {
-  applied:             'Applied',
-  interview:           'Interview',
+  applied:              'Applied',
+  right_to_represent:   'Submitted',
+  interview:            'Interview',
   technical_screening: 'Tech Screen',
   technical_interview: 'Tech Interview',
   second_interview:    '2nd Interview',
@@ -43,6 +45,7 @@ const NODE_LABEL: Record<string, string> = {
 
 const NODE_COLOR: Record<string, string> = {
   applied:             '#7C5CFC',
+  right_to_represent:  '#2563EB',
   interview:           '#16A34A',
   technical_screening: '#0D9488',
   technical_interview: '#0891B2',
@@ -261,7 +264,13 @@ export default function FunnelPage() {
       const text = encodeURIComponent(
         `My job application funnel — ${applicationIds.length} application${applicationIds.length !== 1 ? 's' : ''} tracked 🌊\n\nmvuu.co`
       );
-      window.open(`https://bsky.app/intent/compose?text=${text}`, '_blank', 'noopener,noreferrer');
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = `bluesky://intent/compose?text=${text}`;
+        setTimeout(() => { window.location.href = `https://bsky.app/intent/compose?text=${text}`; }, 2000);
+      } else {
+        window.open(`https://bsky.app/intent/compose?text=${text}`, '_blank', 'noopener,noreferrer');
+      }
     } finally {
       setSharing(false);
     }

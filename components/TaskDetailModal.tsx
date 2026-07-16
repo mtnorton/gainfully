@@ -10,6 +10,7 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onLogOutcome: (taskId: string, type: OutcomeType, date: string, notes: string) => void;
   onDelete?: (taskId: string) => void;
+  onDeleteOutcome?: (outcomeId: string) => void;
 }
 
 type OutcomeGroup = { label: string; types: OutcomeType[] };
@@ -17,6 +18,12 @@ type OutcomeGroup = { label: string; types: OutcomeType[] };
 const NETWORKING_GROUPS: OutcomeGroup[] = [
   { label: 'Networking wins', types: ['coffee_chat', 'informational_interview', 'intro_made', 'response', 'referral'] },
   { label: 'No response', types: ['ghosted', 'other'] },
+];
+
+const RECRUITER_GROUPS: OutcomeGroup[] = [
+  { label: 'Recruiter wins', types: ['right_to_represent', 'response', 'coffee_chat', 'referral', 'intro_made'] },
+  { label: 'No response', types: ['ghosted', 'other'] },
+  { label: 'Recruiter nonsense', types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'] },
 ];
 
 const APPLICATION_GROUPS: OutcomeGroup[] = [
@@ -31,7 +38,8 @@ const DEFAULT_GROUPS: OutcomeGroup[] = [
 ];
 
 function groupsFor(category: string): OutcomeGroup[] {
-  if (category === 'networking') return NETWORKING_GROUPS;
+  if (category === 'recruiter')   return RECRUITER_GROUPS;
+  if (category === 'networking')  return NETWORKING_GROUPS;
   if (category === 'application') return APPLICATION_GROUPS;
   return DEFAULT_GROUPS;
 }
@@ -43,7 +51,7 @@ const NOTES_PLACEHOLDERS: Partial<Record<OutcomeType, string>> = {
   offer: 'Any notes on the offer?',
 };
 
-export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome, onDelete }: TaskDetailModalProps) {
+export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome, onDelete, onDeleteOutcome }: TaskDetailModalProps) {
   const [selectedType, setSelectedType] = useState<OutcomeType | null>(null);
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
@@ -157,7 +165,7 @@ export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome,
                 {outcomes.map((outcome) => {
                   const config = OUTCOME_CONFIG[outcome.type];
                   return (
-                    <div key={outcome.id} className="flex items-start gap-3">
+                    <div key={outcome.id} className="flex items-start gap-3 group">
                       <span className="text-lg flex-shrink-0 relative z-10 bg-white leading-none pt-0.5">
                         {config.icon}
                       </span>
@@ -179,6 +187,15 @@ export default function TaskDetailModal({ task, outcomes, onClose, onLogOutcome,
                           <p className="text-[#97887A] text-xs mt-0.5 italic">&ldquo;{outcome.notes}&rdquo;</p>
                         )}
                       </div>
+                      {onDeleteOutcome && (
+                        <button
+                          onClick={() => onDeleteOutcome(outcome.id)}
+                          className="flex-shrink-0 text-[#C4B5A5] hover:text-red-400 transition-colors text-base leading-none pt-0.5 opacity-0 group-hover:opacity-100"
+                          title="Delete outcome"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   );
                 })}

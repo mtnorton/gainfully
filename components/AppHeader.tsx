@@ -7,6 +7,7 @@ import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import UserModal from './UserModal';
 import { loadState } from '@/lib/supabase/storage';
 import { getLevel } from '@/lib/gameLogic';
+import { getLevelName } from '@/lib/levelNames';
 
 export default function AppHeader() {
   const [badgeCount, setBadgeCount] = useState(0);
@@ -54,12 +55,20 @@ export default function AppHeader() {
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center">
           <Link href="/" className="font-fredoka font-bold text-xl text-[#2C2724] tracking-wide hover:text-[#7C5CFC] transition-colors">MVUU</Link>
           <div className="ml-auto flex items-center gap-2">
-            <span
-              className="font-fredoka font-bold text-sm px-2.5 py-0.5 rounded-lg"
-              style={{ background: '#EEE7FF', color: '#7C5CFC', border: '2px solid #D4C7FF' }}
-            >
-              Lvl {level}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="font-fredoka font-bold text-sm px-2.5 py-0.5 rounded-lg"
+                style={{ background: '#EEE7FF', color: '#7C5CFC', border: '2px solid #D4C7FF' }}
+              >
+                Lvl {level}
+              </span>
+              <span
+                className="font-fredoka font-bold text-sm px-2.5 py-0.5 rounded-lg"
+                style={{ background: '#FFF7E8', color: '#B45309', border: '2px solid #FCE3B0' }}
+              >
+                {getLevelName(level)}
+              </span>
+            </div>
             <button
               onClick={() => setModalOpen(true)}
               className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity"

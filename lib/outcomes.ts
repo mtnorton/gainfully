@@ -10,6 +10,7 @@ export type OutcomeType =
   | 'offer'
   | 'response'
   | 'referral'
+  | 'right_to_represent'
   | 'coffee_chat'
   | 'informational_interview'
   | 'intro_made'
@@ -135,6 +136,15 @@ export const OUTCOME_CONFIG: Record<OutcomeType, OutcomeConfig> = {
     xpLabel: '+20 XP',
     sentiment: 'positive',
     colorClasses: 'bg-[#CFF5EF] text-[#0D9488] border-[#9FE8E0]',
+  },
+  right_to_represent: {
+    label: 'Recruiter Submission (RTR)',
+    shortLabel: 'RTR',
+    icon: '📤',
+    xp: 20,
+    xpLabel: '+20 XP',
+    sentiment: 'positive',
+    colorClasses: 'bg-[#E4EDFF] text-[#2563EB] border-[#C5D9FF]',
   },
   coffee_chat: {
     label: 'Coffee Chat Scheduled',
@@ -279,6 +289,12 @@ const OUTCOME_MESSAGES: Record<OutcomeType, string[]> = {
     "Someone believed in you enough to put their name behind yours. That's huge.",
     "A referral is one of the most valuable things in a job search. You've earned someone's trust.",
     "Your network is working for you. Honor that relationship.",
+  ],
+  right_to_represent: [
+    "Your recruiter is in your corner. A submission means they believe you're a fit — now it's in the company's hands.",
+    "RTR logged. You've got someone advocating for you on the inside. That matters.",
+    "A recruiter submission is a real step forward — someone put their reputation behind yours.",
+    "They didn't just say they'd help — they actually submitted you. That's momentum.",
   ],
   coffee_chat: [
     "A coffee chat is how careers actually get built. Go make it count.",

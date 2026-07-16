@@ -150,6 +150,11 @@ export interface VictoryStats {
   newBadges: Badge[];
 }
 
+export interface LevelUpEvent {
+  level: number;
+  achievedAt: string;
+}
+
 export interface CompletionEvent {
   taskName: string;
   xpEarned: number;

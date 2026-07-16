@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Application, Task, Badge, TaskCategory, CATEGORY_CONFIG } from '@/lib/types';
+import { Application, Task, Badge, TaskCategory, CATEGORY_CONFIG, LevelUpEvent } from '@/lib/types';
 import { Outcome, OUTCOME_CONFIG, OutcomeType } from '@/lib/outcomes';
 import { getInitialBadges, getLevelProgress, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
+import { getLevelName } from '@/lib/levelNames';
 import AppHeader from '@/components/AppHeader';
 import { loadState } from '@/lib/supabase/storage';
 
@@ -351,6 +352,7 @@ export default function ProgressPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [totalXP, setTotalXP] = useState(0);
   const [badgeCount, setBadgeCount] = useState(0);
+  const [levelHistory, setLevelHistory] = useState<LevelUpEvent[]>([]);
   const [mounted, setMounted] = useState(false);
   const [copiedKey, setCopiedKey] = useState<'this' | 'last' | null>(null);
 
@@ -362,6 +364,7 @@ export default function ProgressPage() {
         setOutcomes((data.outcomes ?? []) as Outcome[]);
         setApplications((data.applications ?? []) as Application[]);
         setTotalXP((data.totalXP ?? 0) as number);
+        setLevelHistory((data.levelHistory ?? []) as LevelUpEvent[]);
         const merged = getInitialBadges().map((b) => {
           const found = ((data.badges ?? []) as Badge[]).find((sb) => sb.id === b.id);
           return found ?? b;
@@ -409,6 +412,33 @@ export default function ProgressPage() {
           copied={copiedKey === 'last'}
           onCopy={(text) => handleCopy(text, 'last')}
         />
+
+        {/* Level History */}
+        <div className="bg-white rounded-[22px] p-[18px]" style={{ border: '2px solid #F1E2CF' }}>
+          <h2 className="font-fredoka font-bold text-[18px] text-[#2C2724] mb-4">Level History</h2>
+          {levelHistory.length === 0 ? (
+            <p className="text-[#97887A] text-sm">Level up events will appear here once you start earning XP.</p>
+          ) : (
+            <div className="space-y-0">
+              {[...levelHistory].reverse().map((event, i) => (
+                <div key={i} className="flex items-start gap-3 py-2.5 border-b border-[#F3EADD] last:border-0">
+                  <span
+                    className="font-fredoka font-bold text-xs px-2 py-0.5 rounded-lg flex-shrink-0 mt-0.5"
+                    style={{ background: '#EEE7FF', color: '#7C5CFC', border: '2px solid #D4C7FF' }}
+                  >
+                    Lvl {event.level}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[14px] text-[#2C2724] leading-tight">{getLevelName(event.level)}</p>
+                  </div>
+                  <span className="text-xs text-[#A99C8D] flex-shrink-0 tabular-nums mt-0.5">
+                    {new Date(event.achievedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

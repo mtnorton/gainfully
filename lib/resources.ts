@@ -53,7 +53,13 @@ export const RESOURCES: Resource[] = [
     description: 'Good for creative roles where design matters. Less ideal if you\'re targeting ATS-heavy companies.',
     category: 'Resume & Applications',
   },
-
+  {
+    name: 'Sure Shortlist',
+    url: 'https://sureshortlist.com/',
+    description: 'Optimize and tailor your resume to avoid getting flagged by ATS.',
+    category: 'Resume & Applications',
+  },
+  
   // ── Interview Prep ────────────────────────────────────────────────────────
   {
     name: 'Glassdoor Interviews',

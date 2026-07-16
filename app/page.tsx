@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Application, Task, Badge, CompletionEvent, CustomActivity, VictoryStats } from '@/lib/types';
+import { Application, Task, Badge, CompletionEvent, CustomActivity, VictoryStats, LevelUpEvent } from '@/lib/types';
 import { Outcome, OutcomeResult, OutcomeType, OUTCOME_CONFIG, getOutcomeMessage } from '@/lib/outcomes';
 import { getLevel, getLevelProgress, getInitialBadges, checkForNewBadges, checkForNewBadgesOnOutcome, calculateStreak, checkForStreakBadges, GAME_ONLY_TASK_NAMES, hadYesterdayGap, localDateStr } from '@/lib/gameLogic';
 import { getRandomEncouragement, getRandomCelebration } from '@/lib/encouragements';
@@ -52,10 +52,11 @@ interface AppState {
   badges: Badge[];
   customActivities: CustomActivity[];
   xpOverrides: Record<string, number>;
+  levelHistory: LevelUpEvent[];
 }
 
 function buildDefaultState(): AppState {
-  return { applications: [], tasks: [], outcomes: [], totalXP: 0, badges: getInitialBadges(), customActivities: [], xpOverrides: {} };
+  return { applications: [], tasks: [], outcomes: [], totalXP: 0, badges: getInitialBadges(), customActivities: [], xpOverrides: {}, levelHistory: [] };
 }
 
 export default function Home() {
@@ -91,7 +92,7 @@ export default function Home() {
     const outcomes = parsed.outcomes ?? [];
     const tokens = parsed.freezeTokens ?? 0;
     const frozen = parsed.frozenDates ?? [];
-    setState({ applications, tasks, outcomes, totalXP: parsed.totalXP ?? 0, badges: mergedBadges, customActivities: parsed.customActivities ?? [], xpOverrides: parsed.xpOverrides ?? {} });
+    setState({ applications, tasks, outcomes, totalXP: parsed.totalXP ?? 0, badges: mergedBadges, customActivities: parsed.customActivities ?? [], xpOverrides: parsed.xpOverrides ?? {}, levelHistory: (parsed as unknown as { levelHistory?: LevelUpEvent[] }).levelHistory ?? [] });
     setFreezeTokens(tokens);
     setFrozenDates(frozen);
     if (tokens > 0 && hadYesterdayGap(tasks, outcomes, frozen)) setShowFreezeBanner(true);
@@ -211,7 +212,10 @@ export default function Home() {
           });
         }, 0);
 
-        return { ...prev, applications: newApplications, tasks: allTasks, totalXP: newTotalXP, badges: updatedBadges };
+        const newLevelHistory = newLevel > oldLevel
+          ? [...prev.levelHistory, { level: newLevel, achievedAt: new Date().toISOString() }]
+          : prev.levelHistory;
+        return { ...prev, applications: newApplications, tasks: allTasks, totalXP: newTotalXP, badges: updatedBadges, levelHistory: newLevelHistory };
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,7 +268,10 @@ export default function Home() {
         });
       }, 0);
 
-      return { ...prev, tasks: updatedTasks, totalXP: newTotalXP, badges: updatedBadges };
+      const newLevelHistory = newLevel > oldLevel
+        ? [...prev.levelHistory, { level: newLevel, achievedAt: new Date().toISOString() }]
+        : prev.levelHistory;
+      return { ...prev, tasks: updatedTasks, totalXP: newTotalXP, badges: updatedBadges, levelHistory: newLevelHistory };
     });
   }, []);
 
@@ -397,11 +404,15 @@ export default function Home() {
           }
         }, 0);
 
+        const newLevelHistory = newLevel > oldLevel
+          ? [...prev.levelHistory, { level: newLevel, achievedAt: new Date().toISOString() }]
+          : prev.levelHistory;
         return {
           ...prev,
           outcomes: allOutcomes,
           totalXP: newTotalXP,
           badges: updatedBadges,
+          levelHistory: newLevelHistory,
         };
       });
     },
@@ -543,7 +554,7 @@ export default function Home() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-fredoka font-bold text-[17px] text-[#2C2724]">
-              Recent Activity{recentActivities.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{recentActivities.length}</span>}
+              Recent Activity
             </h2>
             <button
               onClick={() => setIsAddModalOpen(true)}
@@ -561,7 +572,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-2.5">
-              {recentActivities.map((task) => (
+              {recentActivities.slice(0, 5).map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -571,6 +582,12 @@ export default function Home() {
                   onLogOutcome={(taskId) => setLogOutcomeTaskId(taskId)}
                 />
               ))}
+              {recentActivities.length > 5 && (
+                <p className="text-xs text-[#A99C8D] text-center pt-1">
+                  and {recentActivities.length - 5} more ·{' '}
+                  <a href="/pipeline" className="text-[#7C5CFC] hover:underline font-semibold">view all</a>
+                </p>
+              )}
             </div>
           )}
         </section>
@@ -579,7 +596,7 @@ export default function Home() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-fredoka font-bold text-[17px] text-[#2C2724]">
-              Recent Results{recentOutcomes.length > 0 && <span className="ml-2 text-[#97887A] font-semibold text-[15px]">{recentOutcomes.length}</span>}
+              Recent Results
             </h2>
             <button
               onClick={() => setLogOutcomeTaskId(undefined)}

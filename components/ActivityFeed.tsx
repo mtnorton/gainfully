@@ -1,7 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { Task } from '@/lib/types';
 import { Outcome, OUTCOME_CONFIG } from '@/lib/outcomes';
+
+const MAX_VISIBLE = 5;
 
 interface ActivityFeedProps {
   outcomes: Outcome[];
@@ -26,9 +29,12 @@ export default function ActivityFeed({ outcomes, tasks }: ActivityFeedProps) {
     );
   }
 
+  const visible = sorted.slice(0, MAX_VISIBLE);
+  const overflow = sorted.length - MAX_VISIBLE;
+
   return (
-    <div className="space-y-2">
-      {sorted.map((outcome) => {
+    <div className="space-y-1.5">
+      {visible.map((outcome) => {
         const config = OUTCOME_CONFIG[outcome.type];
         const task = outcome.taskId ? taskMap.get(outcome.taskId) : undefined;
         const dateStr = new Date(outcome.date).toLocaleDateString('en-US', {
@@ -39,38 +45,44 @@ export default function ActivityFeed({ outcomes, tasks }: ActivityFeedProps) {
         return (
           <div
             key={outcome.id}
-            className="rounded-[18px] p-4 bg-white"
+            className="rounded-2xl px-3 py-2.5 bg-white"
             style={{ border: '2px solid #F1E2CF' }}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className="w-[38px] h-[38px] rounded-[11px] bg-[#F2E8DB] flex items-center justify-center text-[19px] flex-shrink-0">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-[#F2E8DB] flex items-center justify-center text-sm flex-shrink-0">
                   {config.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-fredoka font-semibold text-[15px] text-[#2C2724]">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-fredoka font-semibold text-sm text-[#2C2724] leading-snug">
                       {config.label}
                     </span>
                     {config.xp > 0 && (
                       <span className="text-xs font-bold text-[#F5A300]">{config.xpLabel}</span>
                     )}
                   </div>
-                  {task && (
-                    <p className="text-[#A99C8D] text-xs mt-0.5 truncate">{task.name}</p>
-                  )}
-                  {outcome.notes && (
-                    <p className="text-[#97887A] text-xs mt-1.5 italic leading-relaxed">
-                      &ldquo;{outcome.notes}&rdquo;
+                  {(task || outcome.notes) && (
+                    <p className="text-[#A99C8D] text-xs truncate leading-tight">
+                      {task?.name}{task && outcome.notes ? ' · ' : ''}{outcome.notes ? `"${outcome.notes}"` : ''}
                     </p>
                   )}
                 </div>
               </div>
-              <span className="text-[#A99C8D] text-xs flex-shrink-0 mt-0.5">{dateStr}</span>
+              <span className="text-[#A99C8D] text-xs flex-shrink-0">{dateStr}</span>
             </div>
           </div>
         );
       })}
+
+      {overflow > 0 && (
+        <p className="text-xs text-[#A99C8D] text-center pt-1">
+          and {overflow} more ·{' '}
+          <Link href="/pipeline" className="text-[#7C5CFC] hover:underline font-semibold">
+            view all
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
