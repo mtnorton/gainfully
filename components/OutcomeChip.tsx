@@ -5,7 +5,8 @@ interface OutcomeChipProps {
 }
 
 export default function OutcomeChip({ outcome }: OutcomeChipProps) {
-  const config = OUTCOME_CONFIG[outcome.type];
+  const config = OUTCOME_CONFIG[outcome.type] ?? OUTCOME_CONFIG['other'];
+  if (!OUTCOME_CONFIG[outcome.type]) return null;
   const dateStr = new Date(outcome.date).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

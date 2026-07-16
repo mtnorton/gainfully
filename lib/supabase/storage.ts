@@ -1,7 +1,9 @@
 import { createClient } from './client';
 import { Application, Task, TaskCategory, CustomActivity, Badge, LevelUpEvent } from '@/lib/types';
-import { Outcome, OutcomeType } from '@/lib/outcomes';
+import { Outcome, OutcomeType, OUTCOME_CONFIG } from '@/lib/outcomes';
 import { getInitialBadges } from '@/lib/gameLogic';
+
+const KNOWN_OUTCOME_TYPES = new Set<string>(Object.keys(OUTCOME_CONFIG));
 
 // ── session ───────────────────────────────────────────────────────────────────
 
@@ -72,16 +74,22 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const outcomes: Outcome[] = (outcomesRes.data ?? []).map((r: any) => ({
-    id:            r.id,
-    taskId:        r.task_id        ?? undefined,
-    applicationId: r.application_id ?? undefined,
-    type:          r.type as OutcomeType,
-    date:          r.date,
-    notes:         r.notes          ?? undefined,
-    xpAwarded:     r.xp_awarded,
-    createdAt:     r.created_at,
-  }));
+  const outcomes: Outcome[] = (outcomesRes.data ?? []).flatMap((r: any) => {
+    if (!KNOWN_OUTCOME_TYPES.has(r.type)) {
+      console.warn('[gainfully] loadState: unknown outcome type, skipping:', r.type, r.id);
+      return [];
+    }
+    return [{
+      id:            r.id,
+      taskId:        r.task_id        ?? undefined,
+      applicationId: r.application_id ?? undefined,
+      type:          r.type as OutcomeType,
+      date:          r.date,
+      notes:         r.notes          ?? undefined,
+      xpAwarded:     r.xp_awarded,
+      createdAt:     r.created_at,
+    }];
+  });
 
   const earnedMap = new Map<string, string>(
     (badgesRes.data ?? []).map((r: any) => [r.badge_id as string, r.earned_at as string])  // eslint-disable-line @typescript-eslint/no-explicit-any

@@ -36,6 +36,7 @@ export default function ActivityFeed({ outcomes, tasks }: ActivityFeedProps) {
     <div className="space-y-1.5">
       {visible.map((outcome) => {
         const config = OUTCOME_CONFIG[outcome.type];
+        if (!config) return null;
         const task = outcome.taskId ? taskMap.get(outcome.taskId) : undefined;
         const dateStr = new Date(outcome.date).toLocaleDateString('en-US', {
           month: 'short',
