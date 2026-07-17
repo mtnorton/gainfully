@@ -7,6 +7,7 @@ import { Application, Task, CATEGORY_CONFIG, TaskCategory } from '@/lib/types';
 import { Outcome, OutcomeType, OUTCOME_CONFIG } from '@/lib/outcomes';
 import { getLevelProgress } from '@/lib/gameLogic';
 import TaskDetailModal from '@/components/TaskDetailModal';
+import PageIntroModal from '@/components/PageIntroModal';
 import { loadState, saveState } from '@/lib/supabase/storage';
 
 const PIPELINE_CATEGORIES: TaskCategory[] = ['application', 'recruiter', 'networking', 'preparation', 'research'];
@@ -425,6 +426,14 @@ export default function PipelinePage() {
         onLogOutcome={handleLogOutcome}
         onDelete={handleDeleteTask}
         onDeleteOutcome={handleDeleteOutcome}
+      />
+      <PageIntroModal
+        storageKey="gainfully-intro-pipeline"
+        image="/dr_doomscroll.png"
+        imageAlt="Dr. Doomscroll"
+        bubbleStyle={{ background: '#FFF0E0', border: '2px solid #F9C9A3' }}
+        bubbleArrowStyle={{ background: '#FFF0E0', border: '2px solid #F9C9A3' }}
+        text={<>Every application sent into the <span style={{ color: '#FF6B4A', fontWeight: 700 }}>void</span>, organized for your convenience. Including the ones where you&apos;re pretty sure the role was filled <span style={{ color: '#EA580C', fontWeight: 700 }}>internally</span> before they even posted it.</>}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import { Outcome, OUTCOME_CONFIG, OutcomeType } from '@/lib/outcomes';
 import { getInitialBadges, getLevelProgress, GAME_ONLY_TASK_NAMES } from '@/lib/gameLogic';
 import { getLevelName } from '@/lib/levelNames';
 import AppHeader from '@/components/AppHeader';
+import PageIntroModal from '@/components/PageIntroModal';
 import { loadState } from '@/lib/supabase/storage';
 
 interface WeekSummary {
@@ -440,6 +441,12 @@ export default function ProgressPage() {
           )}
         </div>
       </main>
+      <PageIntroModal
+        storageKey="gainfully-intro-progress"
+        image="/mvuu.png"
+        imageAlt="Mvuu"
+        text={<>Check your <span style={{ color: '#16A34A', fontWeight: 700 }}>progress</span> as you settle into another week of <span style={{ color: '#FF6B4A', fontWeight: 700 }}>drudgery</span>. The numbers are honest. The market, <span style={{ color: '#7C5CFC', fontWeight: 700 }}>less so</span>.</>}
+      />
     </div>
   );
 }

@@ -557,6 +557,7 @@ export default function Home() {
               Recent Activity
             </h2>
             <button
+              id="log-activity-btn"
               onClick={() => setIsAddModalOpen(true)}
               className="px-4 py-2 rounded-xl text-white text-sm font-fredoka font-semibold transition-colors"
               style={{ background: '#7C5CFC', boxShadow: '0 3px 0 #5B3FD6' }}
@@ -599,6 +600,7 @@ export default function Home() {
               Recent Results
             </h2>
             <button
+              id="log-result-btn"
               onClick={() => setLogOutcomeTaskId(undefined)}
               className="px-4 py-2 rounded-xl text-[#6f6155] text-sm font-fredoka font-semibold transition-colors hover:bg-[#F2E8DB]"
               style={{ background: '#fff', border: '2px solid #EFE0CC' }}

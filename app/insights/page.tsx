@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
+import PageIntroModal from '@/components/PageIntroModal';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -107,6 +108,14 @@ export default function InsightsPage() {
           </div>
         )}
       </main>
+      <PageIntroModal
+        storageKey="gainfully-intro-insights"
+        image="/dr_doomscroll.png"
+        imageAlt="Dr. Doomscroll"
+        bubbleStyle={{ background: '#FFF0E0', border: '2px solid #F9C9A3' }}
+        bubbleArrowStyle={{ background: '#FFF0E0', border: '2px solid #F9C9A3' }}
+        text={<>Turns out staring at a chart of your <span style={{ color: '#FF6B4A', fontWeight: 700 }}>rejections</span> is weirdly satisfying. Data won&apos;t get you the job, but at least it gives the <span style={{ color: '#EA580C', fontWeight: 700 }}>suffering a shape</span>.</>}
+      />
     </div>
   );
 }

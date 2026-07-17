@@ -23,7 +23,7 @@ const NETWORKING_GROUPS: OutcomeGroup[] = [
 ];
 
 const RECRUITER_GROUPS: OutcomeGroup[] = [
-  { label: 'Recruiter wins', types: ['right_to_represent', 'response', 'coffee_chat', 'referral', 'intro_made'] },
+  { label: 'Recruiter wins', types: ['right_to_represent', 'interview', 'technical_screening', 'technical_interview', 'second_interview', 'response', 'coffee_chat', 'referral', 'intro_made'] },
   { label: 'No response', types: ['ghosted', 'other'] },
   { label: 'Recruiter nonsense', types: ['standard_nonsense', 'ridiculous_nonsense', 'outrageous_nonsense'] },
 ];

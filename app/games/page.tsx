@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
+import PageIntroModal from '@/components/PageIntroModal';
 import { msUntilNextReset, formatCountdown } from '@/lib/gameDay';
 
 const GAMES = [
@@ -121,6 +122,14 @@ export default function GamesPage() {
           {' '}· midnight ET
         </p>
       </main>
+      <PageIntroModal
+        storageKey="gainfully-intro-games"
+        image="/fulu.png"
+        imageAlt="Fulu"
+        bubbleStyle={{ background: '#EEE7FF', border: '2px solid #D4C7FF' }}
+        bubbleArrowStyle={{ background: '#EEE7FF', border: '2px solid #D4C7FF' }}
+        text={<>For when the job search has taken <span style={{ color: '#FF6B4A', fontWeight: 700 }}>everything</span> from you except the will to play a slot machine for <span style={{ color: '#7C5CFC', fontWeight: 700 }}>fake XP</span>. We <span style={{ color: '#16A34A', fontWeight: 700 }}>respect it</span>.</>}
+      />
     </div>
   );
 }
